@@ -15,6 +15,7 @@ import { AdminModule } from './admin/admin.module';
 import { FollowsModule } from './follows/follows.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { DraftsModule } from './drafts/drafts.module';
+import { RecommendationsModule } from './recommendations/recommendations.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -49,6 +50,8 @@ import { RolesGuard } from './common/guards/roles.guard';
     FavoritesModule,
     // 草稿模块
     DraftsModule,
+    // 推荐模块
+    RecommendationsModule,
   ],
   controllers: [AppController],
   providers: [

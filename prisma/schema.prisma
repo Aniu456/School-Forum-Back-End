@@ -247,6 +247,41 @@ model Follow {
 }
 
 // ============================================
+// 帖子评分表（用于排序和推荐）
+// ============================================
+model PostScore {
+  id            String   @id @default(uuid())
+  postId        String   @unique @map("post_id")
+  hotScore      Float    @default(0) @map("hot_score")
+  trendingScore Float    @default(0) @map("trending_score")
+  qualityScore  Float    @default(0) @map("quality_score")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("post_scores")
+  @@index([hotScore])
+  @@index([trendingScore])
+  @@index([qualityScore])
+}
+
+// ============================================
+// 话题表
+// ============================================
+model Topic {
+  id            String   @id @default(uuid())
+  name          String   @unique @db.VarChar(50)
+  description   String?  @db.VarChar(200)
+  postCount     Int      @default(0) @map("post_count")
+  followerCount Int      @default(0) @map("follower_count")
+  isHot         Boolean  @default(false) @map("is_hot")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("topics")
+  @@index([postCount])
+  @@index([isHot])
+}
+
+// ============================================
 // 收藏夹表
 // ============================================
 model Folder {
