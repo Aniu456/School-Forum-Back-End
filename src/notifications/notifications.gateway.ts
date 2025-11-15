@@ -9,7 +9,12 @@ import {
   OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Injectable, UseFilters, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  UseFilters,
+  Logger,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { JwtService } from '@nestjs/jwt';
 
@@ -22,8 +27,11 @@ import { JwtService } from '@nestjs/jwt';
 })
 @Injectable()
 export class NotificationsGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
-{
+  implements
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  OnGatewayInit,
+  OnModuleDestroy {
   @WebSocketServer()
   server: Server;
 
@@ -35,10 +43,31 @@ export class NotificationsGateway
   constructor(
     private readonly notificationsService: NotificationsService,
     private readonly jwtService: JwtService,
-  ) {}
+  ) { }
 
   afterInit(server: Server) {
-    this.logger.log('WebSocket 服务器初始化完成');
+    // 设置最大监听器数量，防止内存泄漏警告
+    // 参考: https://github.com/nodejs/node/pull/60469
+    server.setMaxListeners(0);
+
+    // 设置引擎的最大监听器数量
+    if (server.engine) {
+      server.engine.setMaxListeners(0);
+
+      // 通过类型断言访问私有属性
+      const engineAny = server.engine as any;
+      if (engineAny.ws) {
+        engineAny.ws.setMaxListeners(0);
+      }
+    }
+
+    // 通过私有属性访问，使用类型断言
+    const serverAny = server as any;
+    if (serverAny.eio) {
+      serverAny.eio.setMaxListeners(0);
+    }
+
+    this.logger.log('WebSocket 服务器初始化完成，已配置内存泄漏防护');
   }
 
   /**
@@ -77,16 +106,39 @@ export class NotificationsGateway
    * 客户端断开连接时触发
    */
   handleDisconnect(@ConnectedSocket() client: Socket) {
-    // 从映射中移除断开连接的 Socket
-    for (const [userId, sockets] of this.userSockets.entries()) {
-      if (sockets.has(client.id)) {
-        sockets.delete(client.id);
-        if (sockets.size === 0) {
-          this.userSockets.delete(userId);
+    try {
+      let foundUser = false;
+
+      // 从映射中移除断开连接的 Socket
+      for (const [userId, sockets] of this.userSockets.entries()) {
+        if (sockets.has(client.id)) {
+          sockets.delete(client.id);
+
+          if (sockets.size === 0) {
+            this.userSockets.delete(userId);
+          }
+
+          this.logger.log(
+            `用户 ${userId} 已断开连接，Socket ID: ${client.id}，剩余连接数: ${sockets.size}`,
+          );
+          foundUser = true;
+          break;
         }
-        this.logger.log(`用户 ${userId} 已断开连接，Socket ID: ${client.id}`);
-        break;
       }
+
+      // 如果没有找到用户，直接记录日志
+      if (!foundUser) {
+        this.logger.warn(`Socket ${client.id} 断开连接，但未找到对应用户`);
+      }
+
+      // 确保 Socket 对象被正确清理
+      // 移除所有事件监听器
+      client.removeAllListeners();
+
+      // 标记 Socket 为已清理
+      (client as any).cleaned = true;
+    } catch (error) {
+      this.logger.error(`处理断开连接时出错: ${error.message}`);
     }
   }
 
@@ -178,7 +230,9 @@ export class NotificationsGateway
   private async broadcastUnreadCount(userId: string) {
     const unreadData = await this.notificationsService.getUnreadCount(userId);
     const userRoom = `user:${userId}:notifications`;
-    this.server.to(userRoom).emit('notification:unread_count_updated', unreadData);
+    this.server
+      .to(userRoom)
+      .emit('notification:unread_count_updated', unreadData);
   }
 
   /**
@@ -204,5 +258,38 @@ export class NotificationsGateway
       onlineUsers: this.getOnlineUsersCount(),
       timestamp: new Date().toISOString(),
     });
+  }
+
+  /**
+   * 模块销毁时清理资源
+   */
+  async onModuleDestroy() {
+    try {
+      this.logger.log('清理 WebSocket 资源...');
+
+      // 清理所有用户的 Socket 连接信息
+      this.userSockets.clear();
+
+      // 断开所有客户端连接
+      if (this.server) {
+        this.server.disconnectSockets();
+        this.server.removeAllListeners();
+
+        // 清理引擎和事件发射器
+        if (this.server.engine) {
+          this.server.engine.removeAllListeners();
+        }
+
+        // 通过私有属性访问，使用类型断言
+        const serverAny = this.server as any;
+        if (serverAny.eio) {
+          serverAny.eio.removeAllListeners();
+        }
+      }
+
+      this.logger.log('WebSocket 资源清理完成');
+    } catch (error) {
+      this.logger.error(`清理资源时出错: ${error.message}`);
+    }
   }
 }
