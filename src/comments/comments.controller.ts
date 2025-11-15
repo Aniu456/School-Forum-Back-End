@@ -57,10 +57,7 @@ export class CommentsController {
    */
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
-  async remove(
-    @Param('id') commentId: string,
-    @CurrentUser() user: AuthUser,
-  ) {
+  async remove(@Param('id') commentId: string, @CurrentUser() user: AuthUser) {
     return this.commentsService.remove(commentId, user.id, user.role as any);
   }
 }

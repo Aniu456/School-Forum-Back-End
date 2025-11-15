@@ -120,10 +120,7 @@ export class CommentsService {
             },
           },
         },
-        orderBy:
-          sortBy === 'createdAt'
-            ? { createdAt: 'desc' }
-            : undefined,
+        orderBy: sortBy === 'createdAt' ? { createdAt: 'desc' } : undefined,
         skip,
         take: limit,
       }),
@@ -218,11 +215,7 @@ export class CommentsService {
   /**
    * 获取评论的所有回复（分页）
    */
-  async findReplies(
-    commentId: string,
-    page: number = 1,
-    limit: number = 20,
-  ) {
+  async findReplies(commentId: string, page: number = 1, limit: number = 20) {
     // 检查评论是否存在
     const comment = await this.prisma.comment.findUnique({
       where: { id: commentId },

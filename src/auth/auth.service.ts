@@ -125,7 +125,9 @@ export class AuthService {
   async refreshToken(refreshToken: string) {
     try {
       const payload = this.jwtService.verify(refreshToken, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET') || 'fallback-refresh-secret',
+        secret:
+          this.configService.get<string>('JWT_REFRESH_SECRET') ||
+          'fallback-refresh-secret',
       });
 
       // 验证用户是否存在且有效
@@ -163,11 +165,14 @@ export class AuthService {
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
-        secret: this.configService.get<string>('JWT_SECRET') || 'fallback-secret-key',
+        secret:
+          this.configService.get<string>('JWT_SECRET') || 'fallback-secret-key',
         expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '15m',
       } as any),
       this.jwtService.signAsync(payload, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET') || 'fallback-refresh-secret',
+        secret:
+          this.configService.get<string>('JWT_REFRESH_SECRET') ||
+          'fallback-refresh-secret',
         expiresIn:
           this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d',
       } as any),
