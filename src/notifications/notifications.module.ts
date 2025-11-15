@@ -13,6 +13,8 @@ import { NotificationEmitterService } from './notification-emitter.service';
     }),
   ],
   controllers: [NotificationsController],
+  // ⭐️ NotificationEmitterService 中已经使用 forwardRef 处理循环依赖
+  // 所以这里直接提供即可，NestJS 会自动处理
   providers: [
     NotificationsService,
     NotificationsGateway,

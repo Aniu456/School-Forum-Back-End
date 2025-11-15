@@ -52,6 +52,16 @@ export class NotificationsGateway
     return undefined;
   }
 
+  /**
+   * 验证 JWT Token 并获取用户 ID
+   * @throws Error 如果 token 无效或过期
+   */
+  private verifyAndGetUserId(token: string): string {
+    type JwtPayload = { sub: string };
+    const decoded = this.jwtService.verify<JwtPayload>(token);
+    return decoded.sub;
+  }
+
   private hasSetMaxListeners(
     obj: unknown,
   ): obj is { setMaxListeners: (n: number) => void } {
@@ -93,6 +103,9 @@ export class NotificationsGateway
       eio.setMaxListeners(0);
     }
 
+    // ⭐️ 启动心跳监控
+    this.startHeartbeatMonitor();
+
     this.logger.log('WebSocket 服务器初始化完成，已配置内存泄漏防护');
   }
 
@@ -107,9 +120,7 @@ export class NotificationsGateway
         return;
       }
 
-      type JwtPayload = { sub: string };
-      const decoded = this.jwtService.verify<JwtPayload>(token);
-      const userId = decoded.sub;
+      const userId = this.verifyAndGetUserId(token);
 
       if (!this.userSockets.has(userId)) {
         this.userSockets.set(userId, new Set());
@@ -156,15 +167,40 @@ export class NotificationsGateway
         this.logger.warn(`Socket ${client.id} 断开连接，但未找到对应用户`);
       }
 
-      // 确保 Socket 对象被正确清理
-      // 移除所有事件监听器
-      client.removeAllListeners();
+      // ⭐️ 多层级清理 Socket 的所有监听器和引用
+      this.cleanupSocketListeners(client);
 
       // 标记 Socket 为已清理
       (client as unknown as { cleaned?: boolean }).cleaned = true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`处理断开连接时出错: ${message}`);
+    }
+  }
+
+  /**
+   * 彻底清理 Socket 的所有监听器和引用
+   * 解决 MaxListenersExceededWarning 问题的关键步骤
+   */
+  private cleanupSocketListeners(socket: Socket): void {
+    try {
+      // 1. 清理 Socket 本身的所有监听器
+      socket.removeAllListeners();
+
+      // 2. 清理 Socket 的 handshake 数据
+      (socket as unknown as { handshake?: unknown }).handshake = undefined;
+
+      // 3. 清理 Socket 的私有属性引用
+      const socketAsAny = socket as unknown as Record<string, unknown>;
+      if (socketAsAny._events) {
+        socketAsAny._events = null;
+      }
+      if (socketAsAny._eventsCount) {
+        socketAsAny._eventsCount = 0;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`清理 Socket 监听器时出错: ${message}`);
     }
   }
 
@@ -179,9 +215,7 @@ export class NotificationsGateway
         client.disconnect();
         return;
       }
-      type JwtPayload = { sub: string };
-      const decoded = this.jwtService.verify<JwtPayload>(token);
-      const userId = decoded.sub;
+      const userId = this.verifyAndGetUserId(token);
 
       const unreadData = await this.notificationsService.getUnreadCount(userId);
       client.emit('notification:unread_count', unreadData);
@@ -205,9 +239,7 @@ export class NotificationsGateway
         client.disconnect();
         return;
       }
-      type JwtPayload = { sub: string };
-      const decoded = this.jwtService.verify<JwtPayload>(token);
-      const userId = decoded.sub;
+      const userId = this.verifyAndGetUserId(token);
 
       const result = await this.notificationsService.markAsRead(
         data.notificationId,
@@ -237,9 +269,7 @@ export class NotificationsGateway
         client.disconnect();
         return;
       }
-      type JwtPayload = { sub: string };
-      const decoded = this.jwtService.verify<JwtPayload>(token);
-      const userId = decoded.sub;
+      const userId = this.verifyAndGetUserId(token);
 
       const result = await this.notificationsService.markAllAsRead(userId);
 
@@ -265,13 +295,31 @@ export class NotificationsGateway
 
   /**
    * 广播未读通知数量给用户
+   * ⭐️ 添加了错误处理和日志记录
    */
-  private async broadcastUnreadCount(userId: string) {
-    const unreadData = await this.notificationsService.getUnreadCount(userId);
-    const userRoom = `user:${userId}:notifications`;
-    this.server
-      .to(userRoom)
-      .emit('notification:unread_count_updated', unreadData);
+  private async broadcastUnreadCount(userId: string): Promise<void> {
+    try {
+      const unreadData = await this.notificationsService.getUnreadCount(userId);
+      const userRoom = `user:${userId}:notifications`;
+
+      // 检查房间是否存在
+      if (this.server && this.server.sockets.adapter) {
+        const room = this.server.sockets.adapter.rooms.get(userRoom);
+        if (room && room.size > 0) {
+          this.server
+            .to(userRoom)
+            .emit('notification:unread_count_updated', unreadData);
+          this.logger.debug(
+            `未读数量广播给用户 ${userId}: ${unreadData.unreadCount}`,
+          );
+        } else {
+          this.logger.debug(`用户 ${userId} 不在线，跳过未读数量广播`);
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`广播未读数量时出错 (用户 ${userId}): ${message}`);
+    }
   }
 
   /**
@@ -300,9 +348,70 @@ export class NotificationsGateway
   }
 
   /**
-   * 模块销毁时清理资源
+   * 心跳处理 - 客户端定期发送 ping，服务器回复 pong
+   * ⭐️ 用于检测僵死连接并保持连接活跃
    */
-  onModuleDestroy() {
+  @SubscribeMessage('ping')
+  handlePing(@ConnectedSocket() client: Socket): void {
+    try {
+      // 更新客户端的最后活跃时间
+      (client as unknown as { lastHeartbeat?: number }).lastHeartbeat =
+        Date.now();
+
+      // 回复 pong
+      client.emit('pong', { timestamp: Date.now() });
+      this.logger.debug(`收到来自 Socket ${client.id} 的心跳信号`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`处理心跳信号时出错: ${message}`);
+    }
+  }
+
+  /**
+   * 定期检查僵死连接（每 30 秒执行一次）
+   * ⭐️ 移除超过 60 秒未活动的连接
+   */
+  private startHeartbeatMonitor(): void {
+    const HEARTBEAT_INTERVAL = 30000; // 30 秒
+    const HEARTBEAT_TIMEOUT = 60000; // 60 秒
+
+    setInterval(() => {
+      try {
+        const now = Date.now();
+        const socketIds = Array.from(this.server.sockets.sockets.keys());
+
+        for (const socketId of socketIds) {
+          const socket = this.server.sockets.sockets.get(socketId);
+          if (socket) {
+            const lastHeartbeat = (
+              socket as unknown as { lastHeartbeat?: number }
+            ).lastHeartbeat;
+            const handshakeTime = socket.handshake.time || Date.now();
+
+            // 如果没有心跳信息，使用连接时间
+            const lastActiveTime = lastHeartbeat ?? handshakeTime;
+            const timeSinceActive = now - (lastActiveTime as number);
+
+            if (timeSinceActive > HEARTBEAT_TIMEOUT) {
+              this.logger.warn(`Socket ${socketId} 已超时，正在断开连接`);
+              socket.disconnect(true);
+            }
+          }
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`心跳监控出错: ${message}`);
+      }
+    }, HEARTBEAT_INTERVAL);
+
+    this.logger.log('WebSocket 心跳监控已启动 (间隔: 30秒, 超时: 60秒)');
+  }
+
+  /**
+   * 模块销毁时清理资源
+   * ⭐️ 改为异步方法，正确等待所有 Promise
+   */
+  async onModuleDestroy(): Promise<void> {
     try {
       this.logger.log('清理 WebSocket 资源...');
 
@@ -311,7 +420,8 @@ export class NotificationsGateway
 
       // 断开所有客户端连接
       if (this.server) {
-        this.server.disconnectSockets();
+        // ⭐️ 等待所有 socket 断开连接完成
+        await this.server.disconnectSockets();
         this.server.removeAllListeners();
 
         // 清理引擎和事件发射器
