@@ -1,9 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class RecommendationsService {
-  constructor(private prisma: PrismaService) {}
+  // 缓存键前缀和过期时间
+  private readonly CACHE_PREFIX = 'recommendations:';
+  private readonly HOT_POSTS_CACHE_TTL = 60 * 60; // 1 小时
+  private readonly TRENDING_POSTS_CACHE_TTL = 30 * 60; // 30 分钟
+  private readonly LATEST_POSTS_CACHE_TTL = 10 * 60; // 10 分钟
+  private readonly TOPICS_CACHE_TTL = 2 * 60 * 60; // 2 小时
+
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   /**
    * 计算热度分数（Wilson Score 算法）
@@ -98,8 +109,17 @@ export class RecommendationsService {
 
   /**
    * 获取热门帖子列表
+   * 使用 Redis 缓存 1 小时
    */
   async getHotPosts(page: number = 1, limit: number = 20) {
+    const cacheKey = `${this.CACHE_PREFIX}hot:${page}:${limit}`;
+
+    // 尝试从缓存读取
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const skip = (page - 1) * limit;
 
     const [posts, total] = await Promise.all([
@@ -124,7 +144,7 @@ export class RecommendationsService {
       this.prisma.post.count({ where: { isDeleted: false } }),
     ]);
 
-    return {
+    const result = {
       data: posts,
       meta: {
         page,
@@ -132,12 +152,26 @@ export class RecommendationsService {
         total,
       },
     };
+
+    // 缓存结果
+    await this.redis.setex(cacheKey, this.HOT_POSTS_CACHE_TTL, result);
+
+    return result;
   }
 
   /**
    * 获取趋势帖子列表（新晋热门）
+   * 使用 Redis 缓存 30 分钟
    */
   async getTrendingPosts(page: number = 1, limit: number = 20) {
+    const cacheKey = `${this.CACHE_PREFIX}trending:${page}:${limit}`;
+
+    // 尝试从缓存读取
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const skip = (page - 1) * limit;
 
     // 获取最近7天的帖子
@@ -173,7 +207,7 @@ export class RecommendationsService {
       }),
     ]);
 
-    return {
+    const result = {
       data: posts,
       meta: {
         page,
@@ -181,12 +215,26 @@ export class RecommendationsService {
         total,
       },
     };
+
+    // 缓存结果
+    await this.redis.setex(cacheKey, this.TRENDING_POSTS_CACHE_TTL, result);
+
+    return result;
   }
 
   /**
    * 获取最新帖子列表
+   * 使用 Redis 缓存 10 分钟
    */
   async getLatestPosts(page: number = 1, limit: number = 20) {
+    const cacheKey = `${this.CACHE_PREFIX}latest:${page}:${limit}`;
+
+    // 尝试从缓存读取
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const skip = (page - 1) * limit;
 
     const [posts, total] = await Promise.all([
@@ -211,7 +259,7 @@ export class RecommendationsService {
       this.prisma.post.count({ where: { isDeleted: false } }),
     ]);
 
-    return {
+    const result = {
       data: posts,
       meta: {
         page,
@@ -219,6 +267,11 @@ export class RecommendationsService {
         total,
       },
     };
+
+    // 缓存结果
+    await this.redis.setex(cacheKey, this.LATEST_POSTS_CACHE_TTL, result);
+
+    return result;
   }
 
   /**
@@ -335,5 +388,39 @@ export class RecommendationsService {
         total,
       },
     };
+  }
+
+  /**
+   * 清除所有推荐缓存
+   * 当有新的帖子、点赞、评论时调用
+   */
+  async invalidateCache(): Promise<void> {
+    try {
+      // 删除所有推荐相关的缓存键
+      const keys: string[] = [];
+
+      // 清除热门/趋势/最新帖子缓存
+      for (let page = 1; page <= 10; page++) {
+        for (const limit of [10, 20, 50]) {
+          keys.push(`${this.CACHE_PREFIX}hot:${page}:${limit}`);
+          keys.push(`${this.CACHE_PREFIX}trending:${page}:${limit}`);
+          keys.push(`${this.CACHE_PREFIX}latest:${page}:${limit}`);
+        }
+      }
+
+      // 清除话题缓存
+      for (let page = 1; page <= 5; page++) {
+        for (const limit of [10, 20, 50]) {
+          keys.push(`${this.CACHE_PREFIX}topics:hot:${page}:${limit}`);
+          keys.push(`${this.CACHE_PREFIX}topics:all:${page}:${limit}`);
+        }
+      }
+
+      if (keys.length > 0) {
+        await this.redis.mDel(keys);
+      }
+    } catch (error) {
+      console.error('清除推荐缓存失败:', error);
+    }
   }
 }

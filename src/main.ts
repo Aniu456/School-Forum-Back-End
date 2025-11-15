@@ -3,6 +3,8 @@ import { AppModule } from './app.module';
 import { VersioningType } from '@nestjs/common';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
+import RedisStore from 'connect-redis';
+import { createClient } from 'redis';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -10,10 +12,31 @@ async function bootstrap() {
   // 使用 cookie-parser 中间件
   app.use(cookieParser());
 
-  // 配置 express-session 中间件
+  // 初始化 Redis 客户端用于 session store
+  const redisClient = createClient({
+    socket: {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379'),
+    },
+    password: process.env.REDIS_PASSWORD,
+  });
+
+  let sessionStore: any = undefined;
+  try {
+    await redisClient.connect();
+    console.log('✅ Redis Session Store 已连接');
+    sessionStore = new (RedisStore as any)({
+      client: redisClient,
+      prefix: 'session:',
+    });
+  } catch (error) {
+    console.error('❌ Redis 连接失败:', error);
+    console.warn('⚠️  将使用内存 Session 存储 (仅用于开发)');
+  }
+
   app.use(
     session({
-      // rolling: true,
+      store: sessionStore,
       secret: process.env.SESSION_SECRET || 'your-secret-key',
       resave: false,
       saveUninitialized: false,
