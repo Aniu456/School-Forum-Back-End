@@ -25,10 +25,7 @@ export class RecommendationsService {
     const score =
       (p +
         (z * z) / (2 * n) -
-        z *
-          Math.sqrt(
-            (p * (1 - p) + (z * z) / (4 * n)) / n
-          )) /
+        z * Math.sqrt((p * (1 - p) + (z * z) / (4 * n)) / n)) /
       (1 + (z * z) / n);
 
     return Math.max(0, score);
@@ -50,9 +47,7 @@ export class RecommendationsService {
 
     const gravity = 1.8; // 重力系数
     const baseScore =
-      post.likeCount * 2 +
-      post.commentCount * 5 +
-      post.viewCount * 0.1;
+      post.likeCount * 2 + post.commentCount * 5 + post.viewCount * 0.1;
 
     return baseScore / Math.pow(ageInHours + 2, gravity);
   }

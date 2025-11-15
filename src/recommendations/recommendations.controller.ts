@@ -17,7 +17,9 @@ interface AuthUser {
 
 @Controller('recommendations')
 export class RecommendationsController {
-  constructor(private readonly recommendationsService: RecommendationsService) {}
+  constructor(
+    private readonly recommendationsService: RecommendationsService,
+  ) {}
 
   /**
    * 获取热门帖子

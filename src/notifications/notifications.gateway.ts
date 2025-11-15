@@ -9,12 +9,7 @@ import {
   OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import {
-  Injectable,
-  UseFilters,
-  Logger,
-  OnModuleDestroy,
-} from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { JwtService } from '@nestjs/jwt';
 
@@ -28,10 +23,11 @@ import { JwtService } from '@nestjs/jwt';
 @Injectable()
 export class NotificationsGateway
   implements
-  OnGatewayConnection,
-  OnGatewayDisconnect,
-  OnGatewayInit,
-  OnModuleDestroy {
+    OnGatewayConnection,
+    OnGatewayDisconnect,
+    OnGatewayInit,
+    OnModuleDestroy
+{
   @WebSocketServer()
   server: Server;
 
@@ -43,28 +39,58 @@ export class NotificationsGateway
   constructor(
     private readonly notificationsService: NotificationsService,
     private readonly jwtService: JwtService,
-  ) { }
+  ) {}
+
+  private getAuthToken(client: Socket): string | undefined {
+    const auth = (client.handshake as unknown as { auth?: unknown }).auth;
+    if (auth && typeof auth === 'object') {
+      const tokenProp = (auth as { token?: unknown }).token;
+      if (typeof tokenProp === 'string') {
+        return tokenProp;
+      }
+    }
+    return undefined;
+  }
+
+  private hasSetMaxListeners(
+    obj: unknown,
+  ): obj is { setMaxListeners: (n: number) => void } {
+    return (
+      typeof obj === 'object' &&
+      obj !== null &&
+      'setMaxListeners' in obj &&
+      typeof (obj as { setMaxListeners: unknown }).setMaxListeners ===
+        'function'
+    );
+  }
+
+  private hasRemoveAllListeners(
+    obj: unknown,
+  ): obj is { removeAllListeners: () => void } {
+    return (
+      typeof obj === 'object' &&
+      obj !== null &&
+      'removeAllListeners' in obj &&
+      typeof (obj as { removeAllListeners: unknown }).removeAllListeners ===
+        'function'
+    );
+  }
 
   afterInit(server: Server) {
-    // 设置最大监听器数量，防止内存泄漏警告
-    // 参考: https://github.com/nodejs/node/pull/60469
     server.setMaxListeners(0);
 
-    // 设置引擎的最大监听器数量
-    if (server.engine) {
-      server.engine.setMaxListeners(0);
-
-      // 通过类型断言访问私有属性
-      const engineAny = server.engine as any;
-      if (engineAny.ws) {
-        engineAny.ws.setMaxListeners(0);
+    const engine = (server as unknown as { engine?: unknown }).engine;
+    if (engine && this.hasSetMaxListeners(engine)) {
+      engine.setMaxListeners(0);
+      const ws = (engine as unknown as { ws?: unknown }).ws;
+      if (ws && this.hasSetMaxListeners(ws)) {
+        ws.setMaxListeners(0);
       }
     }
 
-    // 通过私有属性访问，使用类型断言
-    const serverAny = server as any;
-    if (serverAny.eio) {
-      serverAny.eio.setMaxListeners(0);
+    const eio = (server as unknown as { eio?: unknown }).eio;
+    if (eio && this.hasSetMaxListeners(eio)) {
+      eio.setMaxListeners(0);
     }
 
     this.logger.log('WebSocket 服务器初始化完成，已配置内存泄漏防护');
@@ -73,31 +99,30 @@ export class NotificationsGateway
   /**
    * 客户端连接时触发
    */
-  async handleConnection(@ConnectedSocket() client: Socket) {
+  handleConnection(@ConnectedSocket() client: Socket) {
     try {
-      const token = client.handshake.auth.token;
+      const token = this.getAuthToken(client);
       if (!token) {
         client.disconnect();
         return;
       }
 
-      // 验证 JWT token
-      const decoded = this.jwtService.verify(token);
+      type JwtPayload = { sub: string };
+      const decoded = this.jwtService.verify<JwtPayload>(token);
       const userId = decoded.sub;
 
-      // 将 Socket 保存到映射中
       if (!this.userSockets.has(userId)) {
         this.userSockets.set(userId, new Set());
       }
       this.userSockets.get(userId)?.add(client.id);
 
-      // 将客户端加入用户特定的房间
-      client.join(`user:${userId}`);
-      client.join(`user:${userId}:notifications`);
+      void client.join(`user:${userId}`);
+      void client.join(`user:${userId}:notifications`);
 
       this.logger.log(`用户 ${userId} 已连接，Socket ID: ${client.id}`);
     } catch (error) {
-      this.logger.error(`连接验证失败: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`连接验证失败: ${message}`);
       client.disconnect();
     }
   }
@@ -136,9 +161,10 @@ export class NotificationsGateway
       client.removeAllListeners();
 
       // 标记 Socket 为已清理
-      (client as any).cleaned = true;
+      (client as unknown as { cleaned?: boolean }).cleaned = true;
     } catch (error) {
-      this.logger.error(`处理断开连接时出错: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`处理断开连接时出错: ${message}`);
     }
   }
 
@@ -146,19 +172,22 @@ export class NotificationsGateway
    * 获取未读通知数量
    */
   @SubscribeMessage('notification:unread_count')
-  async handleGetUnreadCount(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: any,
-  ) {
+  async handleGetUnreadCount(@ConnectedSocket() client: Socket) {
     try {
-      const token = client.handshake.auth.token;
-      const decoded = this.jwtService.verify(token);
+      const token = this.getAuthToken(client);
+      if (!token) {
+        client.disconnect();
+        return;
+      }
+      type JwtPayload = { sub: string };
+      const decoded = this.jwtService.verify<JwtPayload>(token);
       const userId = decoded.sub;
 
       const unreadData = await this.notificationsService.getUnreadCount(userId);
       client.emit('notification:unread_count', unreadData);
     } catch (error) {
-      client.emit('error', { message: error.message });
+      const message = error instanceof Error ? error.message : String(error);
+      client.emit('error', { message });
     }
   }
 
@@ -171,8 +200,13 @@ export class NotificationsGateway
     @MessageBody() data: { notificationId: string },
   ) {
     try {
-      const token = client.handshake.auth.token;
-      const decoded = this.jwtService.verify(token);
+      const token = this.getAuthToken(client);
+      if (!token) {
+        client.disconnect();
+        return;
+      }
+      type JwtPayload = { sub: string };
+      const decoded = this.jwtService.verify<JwtPayload>(token);
       const userId = decoded.sub;
 
       const result = await this.notificationsService.markAsRead(
@@ -185,10 +219,10 @@ export class NotificationsGateway
         isRead: result.isRead,
       });
 
-      // 广播未读数量变化
-      this.broadcastUnreadCount(userId);
+      await this.broadcastUnreadCount(userId);
     } catch (error) {
-      client.emit('error', { message: error.message });
+      const message = error instanceof Error ? error.message : String(error);
+      client.emit('error', { message });
     }
   }
 
@@ -198,18 +232,23 @@ export class NotificationsGateway
   @SubscribeMessage('notification:mark_all_read')
   async handleMarkAllRead(@ConnectedSocket() client: Socket) {
     try {
-      const token = client.handshake.auth.token;
-      const decoded = this.jwtService.verify(token);
+      const token = this.getAuthToken(client);
+      if (!token) {
+        client.disconnect();
+        return;
+      }
+      type JwtPayload = { sub: string };
+      const decoded = this.jwtService.verify<JwtPayload>(token);
       const userId = decoded.sub;
 
       const result = await this.notificationsService.markAllAsRead(userId);
 
       client.emit('notification:all_read_success', result);
 
-      // 广播未读数量变化
-      this.broadcastUnreadCount(userId);
+      await this.broadcastUnreadCount(userId);
     } catch (error) {
-      client.emit('error', { message: error.message });
+      const message = error instanceof Error ? error.message : String(error);
+      client.emit('error', { message });
     }
   }
 
@@ -263,7 +302,7 @@ export class NotificationsGateway
   /**
    * 模块销毁时清理资源
    */
-  async onModuleDestroy() {
+  onModuleDestroy() {
     try {
       this.logger.log('清理 WebSocket 资源...');
 
@@ -276,20 +315,21 @@ export class NotificationsGateway
         this.server.removeAllListeners();
 
         // 清理引擎和事件发射器
-        if (this.server.engine) {
-          this.server.engine.removeAllListeners();
+        const engine = (this.server as unknown as { engine?: unknown }).engine;
+        if (engine && this.hasRemoveAllListeners(engine)) {
+          engine.removeAllListeners();
         }
 
-        // 通过私有属性访问，使用类型断言
-        const serverAny = this.server as any;
-        if (serverAny.eio) {
-          serverAny.eio.removeAllListeners();
+        const eio = (this.server as unknown as { eio?: unknown }).eio;
+        if (eio && this.hasRemoveAllListeners(eio)) {
+          eio.removeAllListeners();
         }
       }
 
       this.logger.log('WebSocket 资源清理完成');
     } catch (error) {
-      this.logger.error(`清理资源时出错: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`清理资源时出错: ${message}`);
     }
   }
 }

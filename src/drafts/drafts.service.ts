@@ -209,10 +209,7 @@ export class DraftsService {
   /**
    * 自动保存草稿（10秒自动保存一次）
    */
-  async autoSaveDraft(
-    userId: string,
-    createPostDraftDto: CreatePostDraftDto,
-  ) {
+  async autoSaveDraft(userId: string, createPostDraftDto: CreatePostDraftDto) {
     return this.createOrUpdateDraft(userId, createPostDraftDto);
   }
 }

@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
@@ -13,7 +13,15 @@ import { NotificationEmitterService } from './notification-emitter.service';
     }),
   ],
   controllers: [NotificationsController],
-  providers: [NotificationsService, NotificationsGateway, NotificationEmitterService],
-  exports: [NotificationsService, NotificationsGateway, NotificationEmitterService],
+  providers: [
+    NotificationsService,
+    NotificationsGateway,
+    NotificationEmitterService,
+  ],
+  exports: [
+    NotificationsService,
+    NotificationsGateway,
+    NotificationEmitterService,
+  ],
 })
 export class NotificationsModule {}

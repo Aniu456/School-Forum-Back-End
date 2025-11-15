@@ -68,7 +68,11 @@ export class FavoritesController {
     @Param('id') folderId: string,
     @Body() updateFolderDto: UpdateFolderDto,
   ) {
-    return this.favoritesService.updateFolder(userId, folderId, updateFolderDto);
+    return this.favoritesService.updateFolder(
+      userId,
+      folderId,
+      updateFolderDto,
+    );
   }
 
   /**

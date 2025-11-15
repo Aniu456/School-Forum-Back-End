@@ -60,7 +60,7 @@ export class FollowsService {
           followingCount: {
             increment: 1,
           },
-        },
+        } as any,
       }),
       this.prisma.user.update({
         where: { id: followingId },
@@ -68,7 +68,7 @@ export class FollowsService {
           followerCount: {
             increment: 1,
           },
-        },
+        } as any,
       }),
     ]);
 
@@ -111,7 +111,7 @@ export class FollowsService {
           followingCount: {
             decrement: 1,
           },
-        },
+        } as any,
       }),
       this.prisma.user.update({
         where: { id: followingId },
@@ -119,7 +119,7 @@ export class FollowsService {
           followerCount: {
             decrement: 1,
           },
-        },
+        } as any,
       }),
     ]);
 
@@ -132,11 +132,7 @@ export class FollowsService {
   /**
    * 获取用户关注列表
    */
-  async getFollowing(
-    userId: string,
-    page: number = 1,
-    limit: number = 20,
-  ) {
+  async getFollowing(userId: string, page: number = 1, limit: number = 20) {
     const skip = (page - 1) * limit;
 
     const [follows, total] = await Promise.all([
@@ -184,11 +180,7 @@ export class FollowsService {
   /**
    * 获取用户粉丝列表
    */
-  async getFollowers(
-    userId: string,
-    page: number = 1,
-    limit: number = 20,
-  ) {
+  async getFollowers(userId: string, page: number = 1, limit: number = 20) {
     const skip = (page - 1) * limit;
 
     const [follows, total] = await Promise.all([

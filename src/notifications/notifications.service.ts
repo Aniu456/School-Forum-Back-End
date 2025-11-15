@@ -219,7 +219,11 @@ export class NotificationsService {
   /**
    * 创建系统通知
    */
-  async createSystemNotification(userId: string, title: string, content: string) {
+  async createSystemNotification(
+    userId: string,
+    title: string,
+    content: string,
+  ) {
     return this.create({
       userId,
       type: NotificationType.SYSTEM,
