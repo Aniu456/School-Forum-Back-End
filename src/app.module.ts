@@ -9,6 +9,9 @@ import { UsersModule } from './users/users.module';
 import { PostsModule } from './posts/posts.module';
 import { CommentsModule } from './comments/comments.module';
 import { LikesModule } from './likes/likes.module';
+import { SearchModule } from './search/search.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { AdminModule } from './admin/admin.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -31,6 +34,12 @@ import { RolesGuard } from './common/guards/roles.guard';
     CommentsModule,
     // 点赞模块
     LikesModule,
+    // 搜索模块
+    SearchModule,
+    // 通知模块
+    NotificationsModule,
+    // 管理模块
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [
