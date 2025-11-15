@@ -56,6 +56,8 @@ pids
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-./uploads
-./docs/**/*
-./claude/**/*
+/# project docs and artifacts
+/uploads/**
+/claude/**
+/docs/**
+/.docs/**

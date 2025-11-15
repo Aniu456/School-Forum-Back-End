@@ -1,6 +1,41 @@
 # 📚 校园论坛后台系统 - 完整文档
 
-欢迎查阅校园论坛后台系统的完整技术文档。本文档分为三个主要部分：**设计**、**实现** 和 **部署**。
+欢迎查阅校园论坛后台系统的完整技术文档。本文档分为三个主要部分：**设计**、**实现** 和 **部署**，以及一些 **项目状态** 和 **优化** 相关的文档。
+
+---
+
+## 📋 快速导航
+
+### 📊 项目状态与完成总结
+
+- [**COMPLETION_REPORT.md**](./COMPLETION_REPORT.md) - v0.4.0 版本完成总结
+  - 功能清单和代码统计
+  - WebSocket 深度优化说明
+  - 编译状态和部署就绪
+
+- [**v0.4.0-completion-summary.md**](./v0.4.0-completion-summary.md) - 详细的完成总结 (600+ 行)
+  - 各个功能模块的实现细节
+  - 代码统计和性能指标
+  - WebSocket 优化新增特性说明
+
+- [**UPDATE_LOG.md**](./UPDATE_LOG.md) - ⭐️ **新增** 项目更新日志
+  - 2024-11-15 WebSocket 深度检查和优化完成
+  - 6 个问题的发现和修复过程
+  - 修复前后效果对比
+  - 性能指标和安全审查
+
+### 🔧 WebSocket 相关文档
+
+- [**WEBSOCKET_MEMORY_LEAK_FIX.md**](./WEBSOCKET_MEMORY_LEAK_FIX.md) - WebSocket 内存泄漏基础修复方案
+  - MaxListenersExceededWarning 问题解决
+  - 三层防护基础方案
+
+- [**WEBSOCKET_DEEP_CHECK_REPORT.md**](./WEBSOCKET_DEEP_CHECK_REPORT.md) - ⭐️ **新增** WebSocket 深度检查和优化报告
+  - 深度检查发现的 6 个问题
+  - 完整的修复方案
+  - 客户端实现指南
+  - 性能基准和安全检查清单
+  - **推荐首先阅读此文档了解完整的优化方案**
 
 ---
 

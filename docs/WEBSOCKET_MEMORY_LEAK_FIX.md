@@ -15,6 +15,20 @@ MaxListenersExceededWarning: Possible EventEmitter memory leak detected.
 
 ---
 
+## ⭐️ 更新说明 (2024-11-15)
+
+本文档描述的是基础修复方案。从 2024-11-15 开始，已进行了**深度优化和完整修复**，包括：
+
+- ✅ 多层级 Socket 监听器清理 (cleanupSocketListeners)
+- ✅ 心跳检测机制 (ping/pong)
+- ✅ 自动清理僵死连接
+- ✅ 异步模块销毁
+- ✅ 完整的错误处理
+
+详见 `docs/WEBSOCKET_DEEP_CHECK_REPORT.md` 了解完整的深度优化方案。
+
+---
+
 ## 解决方案
 
 ### 1. 设置最大监听器数量 (afterInit)
