@@ -1,6 +1,7 @@
 import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterAdminDto } from './dto/register-admin.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { Public } from '../common/decorators/public.decorator';
@@ -10,13 +11,23 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /**
-   * 用户注册
+   * 用户注册（普通学生）
    * POST /auth/register
    */
   @Public()
   @Post('register')
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
+  }
+
+  /**
+   * 管理员注册（需要管理员密钥）
+   * POST /auth/register-admin
+   */
+  @Public()
+  @Post('register-admin')
+  async registerAdmin(@Body() registerAdminDto: RegisterAdminDto) {
+    return this.authService.registerAdmin(registerAdminDto);
   }
 
   /**

@@ -50,8 +50,21 @@ async function bootstrap() {
   );
 
   // 启用 CORS
+  const allowedOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',')
+    : ['http://localhost:3001', 'http://127.0.0.1:3001'];
+
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3001', // 前端地址
+    origin: (origin, callback) => {
+      // 允许无 origin 的请求（如 Postman、移动应用等）
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true, // 允许发送凭证
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],

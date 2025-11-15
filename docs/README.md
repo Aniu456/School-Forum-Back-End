@@ -6,36 +6,48 @@
 
 ## 📋 快速导航
 
+### ⭐ 核心文档 (新手必读)
+
+| 优先级 | 文档 | 说明 | 受众 |
+|-------|-----|------|------|
+| ⭐⭐⭐⭐⭐ | [**QUICK_START.md**](./QUICK_START.md) | 5分钟快速启动指南 | 所有开发者 |
+| ⭐⭐⭐⭐⭐ | [**FRONTEND_API_GUIDE.md**](./FRONTEND_API_GUIDE.md) | 前端 API 完整对接文档 | 前端开发者 |
+| ⭐⭐⭐⭐ | [**MULTI_CLIENT_ARCHITECTURE.md**](./MULTI_CLIENT_ARCHITECTURE.md) | 双前端单后端架构设计 | 架构师/全栈 |
+| ⭐⭐⭐⭐ | [**PERMISSIONS.md**](./PERMISSIONS.md) | RBAC 权限系统完整说明 | 所有开发者 |
+| ⭐⭐⭐ | [**IMPLEMENTATION_GUIDE.md**](./IMPLEMENTATION_GUIDE.md) | 快速实施和测试指南 | 后端开发者 |
+
+### 🛠️ 开发者文档
+
+- [**DEVELOPMENT_GUIDE.md**](./DEVELOPMENT_GUIDE.md) - ⭐️ **新增** 完整的开发指南
+  - 开发环境搭建
+  - 项目结构详解
+  - 代码规范和最佳实践
+  - 调试技巧和性能优化
+  - 安全最佳实践
+
+- [**TROUBLESHOOTING.md**](./TROUBLESHOOTING.md) - ⭐️ **新增** 故障排查指南
+  - 环境相关问题
+  - 数据库问题
+  - 认证授权问题
+  - CORS 跨域问题
+  - 性能和部署问题
+  - 日志分析
+
+- [**DOCUMENTATION_INDEX.md**](./DOCUMENTATION_INDEX.md) - ⭐️ **新增** 完整文档索引
+  - 所有文档导航
+  - 按角色的学习路径
+  - 按功能查找文档
+  - 常见问题快速定位
+
 ### 📊 项目状态与完成总结
 
 - [**COMPLETION_REPORT.md**](./COMPLETION_REPORT.md) - v0.4.0 版本完成总结
-  - 功能清单和代码统计
-  - WebSocket 深度优化说明
-  - 编译状态和部署就绪
-
-- [**v0.4.0-completion-summary.md**](./v0.4.0-completion-summary.md) - 详细的完成总结 (600+ 行)
-  - 各个功能模块的实现细节
-  - 代码统计和性能指标
-  - WebSocket 优化新增特性说明
-
-- [**UPDATE_LOG.md**](./UPDATE_LOG.md) - ⭐️ **新增** 项目更新日志
-  - 2024-11-15 WebSocket 深度检查和优化完成
-  - 6 个问题的发现和修复过程
-  - 修复前后效果对比
-  - 性能指标和安全审查
+- [**v0.4.0-completion-summary.md**](./v0.4.0-completion-summary.md) - 详细的完成总结
+- [**PERMISSIONS_UPDATE.md**](./PERMISSIONS_UPDATE.md) - 权限系统更新摘要
 
 ### 🔧 WebSocket 相关文档
 
 - [**WEBSOCKET_MEMORY_LEAK_FIX.md**](./WEBSOCKET_MEMORY_LEAK_FIX.md) - WebSocket 内存泄漏基础修复方案
-  - MaxListenersExceededWarning 问题解决
-  - 三层防护基础方案
-
-- [**WEBSOCKET_DEEP_CHECK_REPORT.md**](./WEBSOCKET_DEEP_CHECK_REPORT.md) - ⭐️ **新增** WebSocket 深度检查和优化报告
-  - 深度检查发现的 6 个问题
-  - 完整的修复方案
-  - 客户端实现指南
-  - 性能基准和安全检查清单
-  - **推荐首先阅读此文档了解完整的优化方案**
 
 ---
 

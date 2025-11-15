@@ -191,12 +191,39 @@ nest g resource messages
 
 ## 📚 文档
 
+### 核心文档 (推荐阅读顺序)
+
+| 优先级 | 文档 | 说明 | 受众 |
+|-------|-----|------|------|
+| ⭐⭐⭐⭐⭐ | [快速开始](./docs/QUICK_START.md) | 5分钟快速启动指南 | 所有开发者 |
+| ⭐⭐⭐⭐⭐ | [前端 API 对接](./docs/FRONTEND_API_GUIDE.md) | 完整的前端 API 对接文档 | 前端开发者 |
+| ⭐⭐⭐⭐ | [多端架构设计](./docs/MULTI_CLIENT_ARCHITECTURE.md) | 双前端单后端架构设计 | 架构师/全栈开发 |
+| ⭐⭐⭐⭐ | [权限系统说明](./docs/PERMISSIONS.md) | RBAC 权限系统完整说明 | 所有开发者 |
+| ⭐⭐⭐ | [实施指南](./docs/IMPLEMENTATION_GUIDE.md) | 快速实施和测试指南 | 后端开发者 |
+
+### 开发文档
+
 | 文档 | 说明 |
 |-----|------|
-| [详细说明](./docs/README.md) | 完整的项目说明和部署指南 |
-| [架构设计](./docs/architecture-design.md) | 系统架构、模块设计、数据库设计 |
-| [API 文档](./docs/api-documentation.md) | RESTful API 接口详细文档 |
-| [数据库指南](./docs/database-guide.md) | Prisma 使用和数据库迁移指南 |
+| [开发指南](./docs/DEVELOPMENT_GUIDE.md) | 开发规范、最佳实践、调试技巧 |
+| [架构设计](./docs/01-design/architecture-design.md) | 系统架构、模块设计、数据库设计 |
+| [API 文档](./docs/02-implementation/api-documentation.md) | RESTful API 接口详细文档 |
+| [数据库指南](./docs/02-implementation/database-guide.md) | Prisma 使用和数据库迁移指南 |
+| [故障排查](./docs/TROUBLESHOOTING.md) | 常见问题诊断和解决方案 |
+
+### 部署文档
+
+| 文档 | 说明 |
+|-----|------|
+| [阿里云部署指南](./docs/03-deployment/aliyun-deployment.md) | 完整的生产环境部署流程 |
+
+### 其他文档
+
+| 文档 | 说明 |
+|-----|------|
+| [完整文档索引](./docs/DOCUMENTATION_INDEX.md) | 所有文档的导航和学习路径 |
+| [项目总览](./docs/README.md) | 文档体系总览 |
+| [权限更新说明](./docs/PERMISSIONS_UPDATE.md) | 权限系统更新摘要 |
 
 ---
 

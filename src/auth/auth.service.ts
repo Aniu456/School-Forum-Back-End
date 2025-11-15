@@ -3,11 +3,13 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterAdminDto } from './dto/register-admin.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import { Role } from '@prisma/client';
@@ -45,7 +47,7 @@ export class AuthService {
     // 密码加密
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-    // 创建用户
+    // 创建用户（强制设置为 STUDENT 角色）
     const user = await this.prisma.user.create({
       data: {
         username: registerDto.username,
@@ -53,7 +55,7 @@ export class AuthService {
         password: hashedPassword,
         studentId: registerDto.studentId,
         nickname: registerDto.nickname || registerDto.username,
-        role: registerDto.role || Role.STUDENT,
+        role: Role.STUDENT, // 强制设置为学生角色
       },
       select: {
         id: true,
@@ -204,5 +206,65 @@ export class AuthService {
 
     const { password: _, ...result } = user;
     return result;
+  }
+
+  /**
+   * 管理员注册（需要管理员密钥）
+   */
+  async registerAdmin(registerAdminDto: RegisterAdminDto) {
+    // 验证管理员密钥
+    const adminKey = this.configService.get<string>('ADMIN_REGISTRATION_KEY');
+    if (!adminKey || registerAdminDto.adminKey !== adminKey) {
+      throw new ForbiddenException('管理员注册密钥无效');
+    }
+
+    // 检查用户名是否已存在
+    const existingUsername = await this.prisma.user.findUnique({
+      where: { username: registerAdminDto.username },
+    });
+
+    if (existingUsername) {
+      throw new ConflictException('用户名已存在');
+    }
+
+    // 检查邮箱是否已存在
+    const existingEmail = await this.prisma.user.findUnique({
+      where: { email: registerAdminDto.email },
+    });
+
+    if (existingEmail) {
+      throw new ConflictException('邮箱已被注册');
+    }
+
+    // 密码加密
+    const hashedPassword = await bcrypt.hash(registerAdminDto.password, 10);
+
+    // 创建管理员用户
+    const admin = await this.prisma.user.create({
+      data: {
+        username: registerAdminDto.username,
+        email: registerAdminDto.email,
+        password: hashedPassword,
+        nickname: registerAdminDto.nickname || registerAdminDto.username,
+        role: Role.ADMIN, // 设置为管理员角色
+        isActive: true,
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        nickname: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+
+    // 生成 JWT Token
+    const tokens = await this.generateTokens(admin.id, admin.email, admin.role);
+
+    return {
+      user: admin,
+      ...tokens,
+    };
   }
 }
