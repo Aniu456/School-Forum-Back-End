@@ -14,19 +14,21 @@ datasource db {
 // 用户表
 // ============================================
 model User {
-  id         String   @id @default(uuid())
-  username   String   @unique @db.VarChar(50)
-  email      String   @unique @db.VarChar(100)
-  password   String   @db.VarChar(255) // bcrypt 加密
-  studentId  String?  @map("student_id") @db.VarChar(50)
-  nickname   String?  @db.VarChar(100)
-  avatar     String?  @db.VarChar(500)
-  bio        String?  @db.VarChar(500)
-  role       Role     @default(STUDENT)
-  isActive   Boolean  @default(true) @map("is_active")
-  isBanned   Boolean  @default(false) @map("is_banned")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(uuid())
+  username        String   @unique @db.VarChar(50)
+  email           String   @unique @db.VarChar(100)
+  password        String   @db.VarChar(255) // bcrypt 加密
+  studentId       String?  @map("student_id") @db.VarChar(50)
+  nickname        String?  @db.VarChar(100)
+  avatar          String?  @db.VarChar(500)
+  bio             String?  @db.VarChar(500)
+  role            Role     @default(STUDENT)
+  isActive        Boolean  @default(true) @map("is_active")
+  isBanned        Boolean  @default(false) @map("is_banned")
+  followerCount   Int      @default(0) @map("follower_count")
+  followingCount  Int      @default(0) @map("following_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   // 关联关系
   posts            Post[]
@@ -35,6 +37,10 @@ model User {
   notifications    Notification[]
   reports          Report[]       @relation("reporter")
   handledReports   Report[]       @relation("handler")
+  followers        Follow[]       @relation("Following")  // 粉丝列表
+  following        Follow[]       @relation("Follower")   // 关注列表
+  favorites        Favorite[]
+  folders          Folder[]
 
   @@map("users")
   @@index([email])
@@ -67,8 +73,9 @@ model Post {
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   // 关联关系
-  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  comments Comment[]
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments  Comment[]
+  favorites Favorite[]
 
   @@map("posts")
   @@index([authorId, createdAt])
@@ -194,4 +201,68 @@ enum ReportStatus {
   PENDING  // 待处理
   APPROVED // 已通过
   REJECTED // 已拒绝
+}
+
+// ============================================
+// 关注表
+// ============================================
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String   @map("follower_id")  // 关注者
+  followingId String   @map("following_id") // 被关注者
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // 关联关系
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId]) // 防止重复关注
+  @@map("follows")
+  @@index([followerId])
+  @@index([followingId])
+  @@index([createdAt])
+}
+
+// ============================================
+// 收藏夹表
+// ============================================
+model Folder {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String   @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // 关联关系
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  favorites Favorite[]
+
+  @@map("folders")
+  @@index([userId])
+  @@index([isDefault])
+}
+
+// ============================================
+// 收藏表
+// ============================================
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  postId    String   @map("post_id")
+  folderId  String   @map("folder_id")
+  note      String?  @db.Text // 收藏备注
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // 关联关系
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  folder Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId]) // 同一用户不能重复收藏同一帖子
+  @@map("favorites")
+  @@index([userId, createdAt])
+  @@index([postId])
+  @@index([folderId])
 }

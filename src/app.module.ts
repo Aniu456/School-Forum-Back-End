@@ -12,6 +12,8 @@ import { LikesModule } from './likes/likes.module';
 import { SearchModule } from './search/search.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AdminModule } from './admin/admin.module';
+import { FollowsModule } from './follows/follows.module';
+import { FavoritesModule } from './favorites/favorites.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -40,6 +42,10 @@ import { RolesGuard } from './common/guards/roles.guard';
     NotificationsModule,
     // 管理模块
     AdminModule,
+    // 关注模块
+    FollowsModule,
+    // 收藏模块
+    FavoritesModule,
   ],
   controllers: [AppController],
   providers: [
