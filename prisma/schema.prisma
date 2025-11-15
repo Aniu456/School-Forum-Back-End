@@ -14,45 +14,45 @@ datasource db {
 // 用户表
 // ============================================
 model User {
-  id              String   @id @default(uuid())
-  username        String   @unique @db.VarChar(50)
-  email           String   @unique @db.VarChar(100)
-  password        String   @db.VarChar(255) // bcrypt 加密
-  studentId       String?  @map("student_id") @db.VarChar(50)
-  nickname        String?  @db.VarChar(100)
-  avatar          String?  @db.VarChar(500)
-  bio             String?  @db.VarChar(500)
-  role            Role     @default(STUDENT)
-  isActive        Boolean  @default(true) @map("is_active")
-  isBanned        Boolean  @default(false) @map("is_banned")
-  followerCount   Int      @default(0) @map("follower_count")
-  followingCount  Int      @default(0) @map("following_count")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  username       String   @unique @db.VarChar(50)
+  email          String   @unique @db.VarChar(100)
+  password       String   @db.VarChar(255) // bcrypt 加密
+  studentId      String?  @map("student_id") @db.VarChar(50)
+  nickname       String?  @db.VarChar(100)
+  avatar         String?  @db.VarChar(500)
+  bio            String?  @db.VarChar(500)
+  role           Role     @default(STUDENT)
+  isActive       Boolean  @default(true) @map("is_active")
+  isBanned       Boolean  @default(false) @map("is_banned")
+  followerCount  Int      @default(0) @map("follower_count")
+  followingCount Int      @default(0) @map("following_count")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   // 关联关系
-  posts            Post[]
-  comments         Comment[]
-  likes            Like[]
-  notifications    Notification[]
-  reports          Report[]       @relation("reporter")
-  handledReports   Report[]       @relation("handler")
-  followers        Follow[]       @relation("Following")  // 粉丝列表
-  following        Follow[]       @relation("Follower")   // 关注列表
-  favorites        Favorite[]
-  folders          Folder[]
-  postDrafts       PostDraft[]
+  posts          Post[]
+  comments       Comment[]
+  likes          Like[]
+  notifications  Notification[]
+  reports        Report[]       @relation("reporter")
+  handledReports Report[]       @relation("handler")
+  followers      Follow[]       @relation("Following") // 粉丝列表
+  following      Follow[]       @relation("Follower") // 关注列表
+  favorites      Favorite[]
+  folders        Folder[]
+  postDrafts     PostDraft[]
 
-  @@map("users")
   @@index([email])
   @@index([username])
+  @@map("users")
 }
 
 // 用户角色枚举
 enum Role {
-  STUDENT  // 学生
-  TEACHER  // 教师
-  ADMIN    // 管理员
+  STUDENT // 学生
+  TEACHER // 教师
+  ADMIN // 管理员
 }
 
 // ============================================
@@ -62,9 +62,9 @@ model Post {
   id           String    @id @default(uuid())
   title        String    @db.VarChar(200)
   content      String    @db.Text
-  images       String[]  // PostgreSQL 数组类型，存储图片 URL
+  images       String[] // PostgreSQL 数组类型，存储图片 URL
   authorId     String    @map("author_id")
-  tags         String[]  // 标签数组
+  tags         String[] // 标签数组
   viewCount    Int       @default(0) @map("view_count")
   likeCount    Int       @default(0) @map("like_count")
   commentCount Int       @default(0) @map("comment_count")
@@ -78,11 +78,11 @@ model Post {
   comments  Comment[]
   favorites Favorite[]
 
-  @@map("posts")
   @@index([authorId, createdAt])
   @@index([createdAt])
   @@index([tags])
   @@index([isDeleted])
+  @@map("posts")
 }
 
 // ============================================
@@ -106,11 +106,11 @@ model Comment {
   parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies Comment[] @relation("CommentReplies")
 
-  @@map("comments")
   @@index([postId, createdAt])
   @@index([authorId])
   @@index([parentId])
   @@index([isDeleted])
+  @@map("comments")
 }
 
 // ============================================
@@ -127,13 +127,13 @@ model Like {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, targetId, targetType]) // 防止重复点赞
-  @@map("likes")
   @@index([userId, targetType, createdAt])
+  @@map("likes")
 }
 
 // 点赞目标类型枚举
 enum TargetType {
-  POST    // 帖子
+  POST // 帖子
   COMMENT // 评论
 }
 
@@ -153,16 +153,16 @@ model Notification {
   // 关联关系
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("notifications")
   @@index([userId, isRead, createdAt])
+  @@map("notifications")
 }
 
 // 通知类型枚举
 enum NotificationType {
   COMMENT // 评论通知
-  REPLY   // 回复通知
-  LIKE    // 点赞通知
-  SYSTEM  // 系统通知
+  REPLY // 回复通知
+  LIKE // 点赞通知
+  SYSTEM // 系统通知
 }
 
 // ============================================
@@ -184,22 +184,22 @@ model Report {
   reporter User  @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
   handler  User? @relation("handler", fields: [handlerId], references: [id], onDelete: SetNull)
 
-  @@map("reports")
   @@index([status, createdAt])
   @@index([reporterId])
   @@index([targetId, targetType])
+  @@map("reports")
 }
 
 // 举报目标类型枚举
 enum ReportTarget {
-  POST    // 帖子
+  POST // 帖子
   COMMENT // 评论
-  USER    // 用户
+  USER // 用户
 }
 
 // 举报状态枚举
 enum ReportStatus {
-  PENDING  // 待处理
+  PENDING // 待处理
   APPROVED // 已通过
   REJECTED // 已拒绝
 }
@@ -208,22 +208,22 @@ enum ReportStatus {
 // 帖子草稿表
 // ============================================
 model PostDraft {
-  id        String    @id @default(uuid())
-  title     String?   @db.VarChar(200)
-  content   String?   @db.Text
-  images    String[]  // 图片数组
-  tags      String[]  // 标签数组
-  authorId  String    @map("author_id")
-  postId    String?   @map("post_id") // 关联已发布的帖子（可空）
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  id        String   @id @default(uuid())
+  title     String?  @db.VarChar(200)
+  content   String?  @db.Text
+  images    String[] // 图片数组
+  tags      String[] // 标签数组
+  authorId  String   @map("author_id")
+  postId    String?  @map("post_id") // 关联已发布的帖子（可空）
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // 关联关系
   author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
-  @@map("post_drafts")
   @@index([authorId, updatedAt])
   @@index([authorId, createdAt])
+  @@map("post_drafts")
 }
 
 // ============================================
@@ -231,7 +231,7 @@ model PostDraft {
 // ============================================
 model Follow {
   id          String   @id @default(uuid())
-  followerId  String   @map("follower_id")  // 关注者
+  followerId  String   @map("follower_id") // 关注者
   followingId String   @map("following_id") // 被关注者
   createdAt   DateTime @default(now()) @map("created_at")
 
@@ -240,10 +240,10 @@ model Follow {
   following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
 
   @@unique([followerId, followingId]) // 防止重复关注
-  @@map("follows")
   @@index([followerId])
   @@index([followingId])
   @@index([createdAt])
+  @@map("follows")
 }
 
 // ============================================
@@ -257,10 +257,10 @@ model PostScore {
   qualityScore  Float    @default(0) @map("quality_score")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  @@map("post_scores")
   @@index([hotScore])
   @@index([trendingScore])
   @@index([qualityScore])
+  @@map("post_scores")
 }
 
 // ============================================
@@ -276,9 +276,9 @@ model Topic {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  @@map("topics")
   @@index([postCount])
   @@index([isHot])
+  @@map("topics")
 }
 
 // ============================================
@@ -297,9 +297,9 @@ model Folder {
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   favorites Favorite[]
 
-  @@map("folders")
   @@index([userId])
   @@index([isDefault])
+  @@map("folders")
 }
 
 // ============================================
@@ -319,8 +319,8 @@ model Favorite {
   folder Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
 
   @@unique([userId, postId]) // 同一用户不能重复收藏同一帖子
-  @@map("favorites")
   @@index([userId, createdAt])
   @@index([postId])
   @@index([folderId])
+  @@map("favorites")
 }
