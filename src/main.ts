@@ -13,6 +13,7 @@ async function bootstrap() {
   // 配置 express-session 中间件
   app.use(
     session({
+      // rolling: true,
       secret: process.env.SESSION_SECRET || 'your-secret-key',
       resave: false,
       saveUninitialized: false,

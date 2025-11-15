@@ -14,6 +14,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { AdminModule } from './admin/admin.module';
 import { FollowsModule } from './follows/follows.module';
 import { FavoritesModule } from './favorites/favorites.module';
+import { DraftsModule } from './drafts/drafts.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -46,6 +47,8 @@ import { RolesGuard } from './common/guards/roles.guard';
     FollowsModule,
     // 收藏模块
     FavoritesModule,
+    // 草稿模块
+    DraftsModule,
   ],
   controllers: [AppController],
   providers: [

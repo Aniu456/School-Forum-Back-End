@@ -41,6 +41,7 @@ model User {
   following        Follow[]       @relation("Follower")   // 关注列表
   favorites        Favorite[]
   folders          Folder[]
+  postDrafts       PostDraft[]
 
   @@map("users")
   @@index([email])
@@ -201,6 +202,28 @@ enum ReportStatus {
   PENDING  // 待处理
   APPROVED // 已通过
   REJECTED // 已拒绝
+}
+
+// ============================================
+// 帖子草稿表
+// ============================================
+model PostDraft {
+  id        String    @id @default(uuid())
+  title     String?   @db.VarChar(200)
+  content   String?   @db.Text
+  images    String[]  // 图片数组
+  tags      String[]  // 标签数组
+  authorId  String    @map("author_id")
+  postId    String?   @map("post_id") // 关联已发布的帖子（可空）
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  // 关联关系
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("post_drafts")
+  @@index([authorId, updatedAt])
+  @@index([authorId, createdAt])
 }
 
 // ============================================
