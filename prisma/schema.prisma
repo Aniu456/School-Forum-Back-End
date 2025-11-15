@@ -1,0 +1,197 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// 用户表
+// ============================================
+model User {
+  id         String   @id @default(uuid())
+  username   String   @unique @db.VarChar(50)
+  email      String   @unique @db.VarChar(100)
+  password   String   @db.VarChar(255) // bcrypt 加密
+  studentId  String?  @map("student_id") @db.VarChar(50)
+  nickname   String?  @db.VarChar(100)
+  avatar     String?  @db.VarChar(500)
+  bio        String?  @db.VarChar(500)
+  role       Role     @default(STUDENT)
+  isActive   Boolean  @default(true) @map("is_active")
+  isBanned   Boolean  @default(false) @map("is_banned")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // 关联关系
+  posts            Post[]
+  comments         Comment[]
+  likes            Like[]
+  notifications    Notification[]
+  reports          Report[]       @relation("reporter")
+  handledReports   Report[]       @relation("handler")
+
+  @@map("users")
+  @@index([email])
+  @@index([username])
+}
+
+// 用户角色枚举
+enum Role {
+  STUDENT  // 学生
+  TEACHER  // 教师
+  ADMIN    // 管理员
+}
+
+// ============================================
+// 帖子表
+// ============================================
+model Post {
+  id           String    @id @default(uuid())
+  title        String    @db.VarChar(200)
+  content      String    @db.Text
+  images       String[]  // PostgreSQL 数组类型，存储图片 URL
+  authorId     String    @map("author_id")
+  tags         String[]  // 标签数组
+  viewCount    Int       @default(0) @map("view_count")
+  likeCount    Int       @default(0) @map("like_count")
+  commentCount Int       @default(0) @map("comment_count")
+  isDeleted    Boolean   @default(false) @map("is_deleted")
+  deletedAt    DateTime? @map("deleted_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // 关联关系
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments Comment[]
+
+  @@map("posts")
+  @@index([authorId, createdAt])
+  @@index([createdAt])
+  @@index([tags])
+  @@index([isDeleted])
+}
+
+// ============================================
+// 评论表
+// ============================================
+model Comment {
+  id        String    @id @default(uuid())
+  content   String    @db.Text
+  postId    String    @map("post_id")
+  authorId  String    @map("author_id")
+  parentId  String?   @map("parent_id") // 父评论ID，用于二级评论
+  likeCount Int       @default(0) @map("like_count")
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  // 关联关系
+  post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author  User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
+
+  @@map("comments")
+  @@index([postId, createdAt])
+  @@index([authorId])
+  @@index([parentId])
+  @@index([isDeleted])
+}
+
+// ============================================
+// 点赞表
+// ============================================
+model Like {
+  id         String     @id @default(uuid())
+  userId     String     @map("user_id")
+  targetId   String     @map("target_id")
+  targetType TargetType @map("target_type")
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  // 关联关系
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetId, targetType]) // 防止重复点赞
+  @@map("likes")
+  @@index([userId, targetType, createdAt])
+}
+
+// 点赞目标类型枚举
+enum TargetType {
+  POST    // 帖子
+  COMMENT // 评论
+}
+
+// ============================================
+// 通知表
+// ============================================
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  title     String           @db.VarChar(200)
+  content   String           @db.Text
+  relatedId String?          @map("related_id") // 相关帖子/评论ID
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  // 关联关系
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+  @@index([userId, isRead, createdAt])
+}
+
+// 通知类型枚举
+enum NotificationType {
+  COMMENT // 评论通知
+  REPLY   // 回复通知
+  LIKE    // 点赞通知
+  SYSTEM  // 系统通知
+}
+
+// ============================================
+// 举报表
+// ============================================
+model Report {
+  id         String       @id @default(uuid())
+  reporterId String       @map("reporter_id")
+  targetId   String       @map("target_id")
+  targetType ReportTarget @map("target_type")
+  reason     String       @db.Text
+  status     ReportStatus @default(PENDING)
+  handlerId  String?      @map("handler_id")
+  handleNote String?      @map("handle_note") @db.Text
+  createdAt  DateTime     @default(now()) @map("created_at")
+  handledAt  DateTime?    @map("handled_at")
+
+  // 关联关系
+  reporter User  @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  handler  User? @relation("handler", fields: [handlerId], references: [id], onDelete: SetNull)
+
+  @@map("reports")
+  @@index([status, createdAt])
+  @@index([reporterId])
+  @@index([targetId, targetType])
+}
+
+// 举报目标类型枚举
+enum ReportTarget {
+  POST    // 帖子
+  COMMENT // 评论
+  USER    // 用户
+}
+
+// 举报状态枚举
+enum ReportStatus {
+  PENDING  // 待处理
+  APPROVED // 已通过
+  REJECTED // 已拒绝
+}
