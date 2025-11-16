@@ -27,13 +27,13 @@ export class AuthService {
     private configService: ConfigService,
   ) {
     // 🛡️ 验证必需的环境变量（启动时检查）
-    this.jwtSecret = this.configService.get<string>('JWT_SECRET');
-    this.jwtRefreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+    this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
+    this.jwtRefreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET')!;
 
     if (!this.jwtSecret || !this.jwtRefreshSecret) {
       throw new Error(
         '❌ 缺少必需的环境变量: JWT_SECRET 或 JWT_REFRESH_SECRET\n' +
-          '请在 .env 文件中设置这些变量',
+        '请在 .env 文件中设置这些变量',
       );
     }
 
