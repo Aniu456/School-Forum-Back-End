@@ -16,11 +16,32 @@ import { Role } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
+  private readonly jwtSecret: string;
+  private readonly jwtRefreshSecret: string;
+  private readonly jwtExpiresIn: string;
+  private readonly jwtRefreshExpiresIn: string;
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) {}
+  ) {
+    // 🛡️ 验证必需的环境变量（启动时检查）
+    this.jwtSecret = this.configService.get<string>('JWT_SECRET');
+    this.jwtRefreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+
+    if (!this.jwtSecret || !this.jwtRefreshSecret) {
+      throw new Error(
+        '❌ 缺少必需的环境变量: JWT_SECRET 或 JWT_REFRESH_SECRET\n' +
+          '请在 .env 文件中设置这些变量',
+      );
+    }
+
+    // 设置默认过期时间
+    this.jwtExpiresIn = this.configService.get<string>('JWT_EXPIRES_IN') || '15m';
+    this.jwtRefreshExpiresIn =
+      this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
+  }
 
   /**
    * 用户注册
@@ -127,9 +148,7 @@ export class AuthService {
   async refreshToken(refreshToken: string) {
     try {
       const payload = this.jwtService.verify(refreshToken, {
-        secret:
-          this.configService.get<string>('JWT_REFRESH_SECRET') ||
-          'fallback-refresh-secret',
+        secret: this.jwtRefreshSecret, // 使用类属性
       });
 
       // 验证用户是否存在且有效
@@ -167,16 +186,12 @@ export class AuthService {
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
-        secret:
-          this.configService.get<string>('JWT_SECRET') || 'fallback-secret-key',
-        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '15m',
+        secret: this.jwtSecret, // 使用类属性（已在构造函数中验证）
+        expiresIn: this.jwtExpiresIn,
       } as any),
       this.jwtService.signAsync(payload, {
-        secret:
-          this.configService.get<string>('JWT_REFRESH_SECRET') ||
-          'fallback-refresh-secret',
-        expiresIn:
-          this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d',
+        secret: this.jwtRefreshSecret, // 使用类属性
+        expiresIn: this.jwtRefreshExpiresIn,
       } as any),
     ]);
 

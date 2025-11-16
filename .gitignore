@@ -59,5 +59,4 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 /# project docs and artifacts
 /uploads/**
 /claude/**
-/docs/**
 /.docs/**

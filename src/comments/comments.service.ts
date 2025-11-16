@@ -79,6 +79,7 @@ export class CommentsService {
 
   /**
    * 获取帖子的评论列表（分层结构）
+   * 🚀 已优化：修复 N+1 查询问题
    */
   async findByPostId(
     postId: string,
@@ -133,69 +134,87 @@ export class CommentsService {
       }),
     ]);
 
-    // 为每个一级评论获取点赞数和回复（最多显示几条）
-    const commentsWithDetails = await Promise.all(
-      comments.map(async (comment) => {
-        // 获取点赞数
-        const likeCount = await this.prisma.like.count({
-          where: {
-            targetId: comment.id,
-            targetType: 'COMMENT',
-          },
-        });
+    // 🚀 优化：批量获取评论ID
+    const commentIds = comments.map((c) => c.id);
 
-        // 如果需要按点赞数排序，则获取点赞数
-        if (sortBy === 'likeCount') {
-          // 这里需要在获取所有评论后再排序
-        }
+    // 🚀 优化：一次性获取所有一级评论的点赞数
+    const commentLikeCounts = await this.prisma.like.groupBy({
+      by: ['targetId'],
+      where: {
+        targetId: { in: commentIds },
+        targetType: 'COMMENT',
+      },
+      _count: {
+        id: true,
+      },
+    });
 
-        // 获取前3条回复
-        const replies = await this.prisma.comment.findMany({
-          where: {
-            parentId: comment.id,
-            isDeleted: false,
-          },
-          include: {
-            author: {
-              select: {
-                id: true,
-                username: true,
-                nickname: true,
-                avatar: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: 'asc',
-          },
-          take: 3,
-        });
-
-        // 为每条回复获取点赞数
-        const repliesWithLikes = await Promise.all(
-          replies.map(async (reply) => {
-            const replyLikeCount = await this.prisma.like.count({
-              where: {
-                targetId: reply.id,
-                targetType: 'COMMENT',
-              },
-            });
-            return {
-              ...reply,
-              likeCount: replyLikeCount,
-            };
-          }),
-        );
-
-        return {
-          ...comment,
-          likeCount,
-          replyCount: comment._count.replies,
-          replies: repliesWithLikes,
-          _count: undefined,
-        };
-      }),
+    const commentLikeCountMap = new Map(
+      commentLikeCounts.map((item) => [item.targetId, item._count.id]),
     );
+
+    // 🚀 优化：一次性获取所有回复（前3条）
+    const allReplies = await this.prisma.comment.findMany({
+      where: {
+        parentId: { in: commentIds },
+        isDeleted: false,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            username: true,
+            nickname: true,
+            avatar: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+      // 注意：这里获取所有回复，然后在内存中分组和截取
+    });
+
+    // 🚀 优化：获取所有回复的点赞数
+    const replyIds = allReplies.map((r) => r.id);
+    const replyLikeCounts = await this.prisma.like.groupBy({
+      by: ['targetId'],
+      where: {
+        targetId: { in: replyIds },
+        targetType: 'COMMENT',
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    const replyLikeCountMap = new Map(
+      replyLikeCounts.map((item) => [item.targetId, item._count.id]),
+    );
+
+    // 按父评论ID分组回复
+    const repliesByParentId = new Map<string, any[]>();
+    allReplies.forEach((reply) => {
+      if (!repliesByParentId.has(reply.parentId!)) {
+        repliesByParentId.set(reply.parentId!, []);
+      }
+      repliesByParentId.get(reply.parentId!)!.push({
+        ...reply,
+        likeCount: replyLikeCountMap.get(reply.id) || 0,
+      });
+    });
+
+    // 组合数据
+    const commentsWithDetails = comments.map((comment) => {
+      const replies = repliesByParentId.get(comment.id) || [];
+      return {
+        ...comment,
+        likeCount: commentLikeCountMap.get(comment.id) || 0,
+        replyCount: comment._count.replies,
+        replies: replies.slice(0, 3), // 只取前3条
+        _count: undefined,
+      };
+    });
 
     // 如果按点赞数排序，在这里排序
     if (sortBy === 'likeCount') {

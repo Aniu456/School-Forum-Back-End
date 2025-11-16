@@ -17,6 +17,7 @@ import { FollowsModule } from './follows/follows.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { DraftsModule } from './drafts/drafts.module';
 import { RecommendationsModule } from './recommendations/recommendations.module';
+import { AnnouncementsModule } from './announcements/announcements.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
@@ -56,6 +57,8 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     DraftsModule,
     // 推荐模块
     RecommendationsModule,
+    // 公告模块
+    AnnouncementsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -14,34 +14,41 @@ datasource db {
 // 用户表
 // ============================================
 model User {
-  id             String   @id @default(uuid())
-  username       String   @unique @db.VarChar(50)
-  email          String   @unique @db.VarChar(100)
-  password       String   @db.VarChar(255) // bcrypt 加密
-  studentId      String?  @map("student_id") @db.VarChar(50)
-  nickname       String?  @db.VarChar(100)
-  avatar         String?  @db.VarChar(500)
-  bio            String?  @db.VarChar(500)
-  role           Role     @default(STUDENT)
-  isActive       Boolean  @default(true) @map("is_active")
-  isBanned       Boolean  @default(false) @map("is_banned")
-  followerCount  Int      @default(0) @map("follower_count")
-  followingCount Int      @default(0) @map("following_count")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id             String    @id @default(uuid())
+  username       String    @unique @db.VarChar(50)
+  email          String    @unique @db.VarChar(100)
+  password       String    @db.VarChar(255) // bcrypt 加密
+  studentId      String?   @map("student_id") @db.VarChar(50)
+  nickname       String?   @db.VarChar(100)
+  avatar         String?   @db.VarChar(500)
+  bio            String?   @db.VarChar(500)
+  role           Role      @default(STUDENT)
+  isActive       Boolean   @default(true) @map("is_active")
+  isBanned       Boolean   @default(false) @map("is_banned")
+  canPost        Boolean   @default(true) @map("can_post") // 是否允许发帖
+  canComment     Boolean   @default(true) @map("can_comment") // 是否允许评论
+  followerCount  Int       @default(0) @map("follower_count")
+  followingCount Int       @default(0) @map("following_count")
+  lastLoginAt    DateTime? @map("last_login_at") // 最后登录时间
+  lastLoginIp    String?   @map("last_login_ip") @db.VarChar(50) // 最后登录IP
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   // 关联关系
-  posts          Post[]
-  comments       Comment[]
-  likes          Like[]
-  notifications  Notification[]
-  reports        Report[]       @relation("reporter")
-  handledReports Report[]       @relation("handler")
-  followers      Follow[]       @relation("Following") // 粉丝列表
-  following      Follow[]       @relation("Follower") // 关注列表
-  favorites      Favorite[]
-  folders        Folder[]
-  postDrafts     PostDraft[]
+  posts             Post[]
+  comments          Comment[]
+  likes             Like[]
+  notifications     Notification[]
+  reports           Report[]           @relation("reporter")
+  handledReports    Report[]           @relation("handler")
+  followers         Follow[]           @relation("Following") // 粉丝列表
+  following         Follow[]           @relation("Follower") // 关注列表
+  favorites         Favorite[]
+  folders           Folder[]
+  postDrafts        PostDraft[]
+  loginHistories    UserLoginHistory[] // 登录历史
+  verificationCodes VerificationCode[] // 验证码
+  announcements     Announcement[] // 发布的公告
 
   @@index([email])
   @@index([username])
@@ -50,28 +57,33 @@ model User {
 
 // 用户角色枚举
 enum Role {
-  STUDENT // 学生
-  TEACHER // 教师
-  ADMIN // 管理员
+  STUDENT // 普通用户（开放注册）
+  ADMIN // 管理员（后台管理系统专用）
 }
 
 // ============================================
 // 帖子表
 // ============================================
 model Post {
-  id           String    @id @default(uuid())
-  title        String    @db.VarChar(200)
-  content      String    @db.Text
-  images       String[] // PostgreSQL 数组类型，存储图片 URL
-  authorId     String    @map("author_id")
-  tags         String[] // 标签数组
-  viewCount    Int       @default(0) @map("view_count")
-  likeCount    Int       @default(0) @map("like_count")
-  commentCount Int       @default(0) @map("comment_count")
-  isDeleted    Boolean   @default(false) @map("is_deleted")
-  deletedAt    DateTime? @map("deleted_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id            String    @id @default(uuid())
+  title         String    @db.VarChar(200)
+  content       String    @db.Text
+  images        String[] // PostgreSQL 数组类型，存储图片 URL
+  authorId      String    @map("author_id")
+  tags          String[] // 标签数组
+  viewCount     Int       @default(0) @map("view_count")
+  likeCount     Int       @default(0) @map("like_count")
+  commentCount  Int       @default(0) @map("comment_count")
+  isDeleted     Boolean   @default(false) @map("is_deleted")
+  deletedAt     DateTime? @map("deleted_at")
+  isPinned      Boolean   @default(false) @map("is_pinned") // 是否置顶
+  isHighlighted Boolean   @default(false) @map("is_highlighted") // 是否精华
+  isLocked      Boolean   @default(false) @map("is_locked") // 是否锁定（禁止评论）
+  isHidden      Boolean   @default(false) @map("is_hidden") // 是否隐藏
+  pinnedAt      DateTime? @map("pinned_at") // 置顶时间
+  highlightedAt DateTime? @map("highlighted_at") // 加精时间
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   // 关联关系
   author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -82,6 +94,9 @@ model Post {
   @@index([createdAt])
   @@index([tags])
   @@index([isDeleted])
+  @@index([isPinned, createdAt])
+  @@index([isHighlighted, createdAt])
+  @@index([isHidden])
   @@map("posts")
 }
 
@@ -323,4 +338,82 @@ model Favorite {
   @@index([postId])
   @@index([folderId])
   @@map("favorites")
+}
+
+// ============================================
+// 用户登录历史表
+// ============================================
+model UserLoginHistory {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  loginIp   String   @map("login_ip") @db.VarChar(50)
+  loginTime DateTime @default(now()) @map("login_time")
+  userAgent String?  @map("user_agent") @db.VarChar(500)
+  device    String?  @db.VarChar(100) // 设备类型
+  location  String?  @db.VarChar(100) // 登录地点
+
+  // 关联关系
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loginTime])
+  @@map("user_login_histories")
+}
+
+// ============================================
+// 验证码表
+// ============================================
+model VerificationCode {
+  id        String               @id @default(uuid())
+  userId    String?              @map("user_id") // 可为空（注册时还没有用户ID）
+  email     String               @db.VarChar(100)
+  code      String               @db.VarChar(10)
+  type      VerificationCodeType
+  isUsed    Boolean              @default(false) @map("is_used")
+  expiresAt DateTime             @map("expires_at")
+  createdAt DateTime             @default(now()) @map("created_at")
+
+  // 关联关系
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, type, isUsed])
+  @@index([expiresAt])
+  @@map("verification_codes")
+}
+
+// 验证码类型枚举
+enum VerificationCodeType {
+  REGISTER // 注册验证
+  RESET_PASSWORD // 重置密码
+  CHANGE_EMAIL // 更换邮箱
+}
+
+// ============================================
+// 系统公告表
+// ============================================
+model Announcement {
+  id          String           @id @default(uuid())
+  title       String           @db.VarChar(200)
+  content     String           @db.Text
+  type        AnnouncementType @default(INFO)
+  targetRole  Role?            @map("target_role") // 目标角色（空表示所有人）
+  isPublished Boolean          @default(false) @map("is_published")
+  isPinned    Boolean          @default(false) @map("is_pinned") // 是否置顶
+  authorId    String           @map("author_id")
+  publishedAt DateTime?        @map("published_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  // 关联关系
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([isPublished, isPinned, createdAt])
+  @@index([targetRole])
+  @@map("announcements")
+}
+
+// 公告类型枚举
+enum AnnouncementType {
+  INFO // 一般公告
+  WARNING // 警告公告
+  URGENT // 紧急公告
 }

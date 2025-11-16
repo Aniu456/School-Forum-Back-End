@@ -16,11 +16,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
     private prisma: PrismaService,
   ) {
+    // 🛡️ 验证 JWT_SECRET 环境变量
+    const jwtSecret = configService.get<string>('JWT_SECRET');
+    if (!jwtSecret) {
+      throw new Error(
+        '❌ 缺少必需的环境变量: JWT_SECRET\n请在 .env 文件中设置 JWT_SECRET',
+      );
+    }
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey:
-        configService.get<string>('JWT_SECRET') || 'fallback-secret-key',
+      secretOrKey: jwtSecret, // 使用已验证的 secret
     });
   }
 

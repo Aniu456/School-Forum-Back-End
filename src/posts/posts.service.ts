@@ -45,6 +45,7 @@ export class PostsService {
 
   /**
    * 获取帖子列表（分页、排序、筛选）
+   * 🚀 已优化：修复 N+1 查询问题
    */
   async findAll(
     page: number = 1,
@@ -107,24 +108,31 @@ export class PostsService {
       this.prisma.post.count({ where }),
     ]);
 
-    // 获取每个帖子的点赞数
-    const postsWithCounts = await Promise.all(
-      posts.map(async (post) => {
-        const likeCount = await this.prisma.like.count({
-          where: {
-            targetId: post.id,
-            targetType: 'POST',
-          },
-        });
+    // 🚀 优化：批量获取所有帖子的点赞数（一次查询）
+    const postIds = posts.map((p) => p.id);
+    const likeCounts = await this.prisma.like.groupBy({
+      by: ['targetId'],
+      where: {
+        targetId: { in: postIds },
+        targetType: 'POST',
+      },
+      _count: {
+        id: true,
+      },
+    });
 
-        return {
-          ...post,
-          likeCount,
-          commentCount: post._count.comments,
-          _count: undefined,
-        };
-      }),
+    // 创建点赞数映射表
+    const likeCountMap = new Map(
+      likeCounts.map((item) => [item.targetId, item._count.id]),
     );
+
+    // 组合数据
+    const postsWithCounts = posts.map((post) => ({
+      ...post,
+      likeCount: likeCountMap.get(post.id) || 0,
+      commentCount: post._count.comments,
+      _count: undefined,
+    }));
 
     return {
       data: postsWithCounts,

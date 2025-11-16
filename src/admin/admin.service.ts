@@ -8,10 +8,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { HandleReportDto } from './dto/handle-report.dto';
 import { ReportStatus, Role, ReportTarget } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AdminService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * 创建举报
@@ -368,5 +369,281 @@ export class AdminService {
       // 封禁用户
       await this.banUser(targetId);
     }
+  }
+
+  // ============================================
+  // 用户管理新增功能
+  // ============================================
+
+  /**
+   * 重置用户密码（管理员）
+   */
+  async resetUserPassword(userId: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    if (user.role === Role.ADMIN) {
+      throw new ForbiddenException('不能重置管理员密码');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+
+    return { message: '密码已重置' };
+  }
+
+  /**
+   * 修改用户角色（管理员）
+   */
+  async updateUserRole(userId: string, role: Role) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    if (user.role === Role.ADMIN) {
+      throw new ForbiddenException('不能修改管理员角色');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { role },
+    });
+
+    return { message: '用户角色已更新' };
+  }
+
+  /**
+   * 查看用户登录历史（管理员）
+   */
+  async getUserLoginHistory(userId: string, page: number = 1, limit: number = 20) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [histories, total] = await Promise.all([
+      this.prisma.userLoginHistory.findMany({
+        where: { userId },
+        orderBy: { loginTime: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.userLoginHistory.count({ where: { userId } }),
+    ]);
+
+    return {
+      data: histories,
+      meta: { page, limit, total },
+    };
+  }
+
+  /**
+   * 禁止/允许用户发帖（管理员）
+   */
+  async togglePostPermission(userId: string, canPost: boolean) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    if (user.role === Role.ADMIN) {
+      throw new ForbiddenException('不能修改管理员权限');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { canPost },
+    });
+
+    return { message: canPost ? '已允许用户发帖' : '已禁止用户发帖' };
+  }
+
+  /**
+   * 禁止/允许用户评论（管理员）
+   */
+  async toggleCommentPermission(userId: string, canComment: boolean) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    if (user.role === Role.ADMIN) {
+      throw new ForbiddenException('不能修改管理员权限');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { canComment },
+    });
+
+    return { message: canComment ? '已允许用户评论' : '已禁止用户评论' };
+  }
+
+  // ============================================
+  // 内容管理新增功能
+  // ============================================
+
+  /**
+   * 置顶帖子
+   */
+  async pinPost(postId: string) {
+    const post = await this.prisma.post.findUnique({ where: { id: postId } });
+    if (!post || post.isDeleted) {
+      throw new NotFoundException('帖子不存在');
+    }
+
+    await this.prisma.post.update({
+      where: { id: postId },
+      data: { isPinned: true, pinnedAt: new Date() },
+    });
+
+    return { message: '帖子已置顶' };
+  }
+
+  /**
+   * 取消置顶
+   */
+  async unpinPost(postId: string) {
+    await this.prisma.post.update({
+      where: { id: postId },
+      data: { isPinned: false, pinnedAt: null },
+    });
+
+    return { message: '已取消置顶' };
+  }
+
+  /**
+   * 加精华
+   */
+  async highlightPost(postId: string) {
+    const post = await this.prisma.post.findUnique({ where: { id: postId } });
+    if (!post || post.isDeleted) {
+      throw new NotFoundException('帖子不存在');
+    }
+
+    await this.prisma.post.update({
+      where: { id: postId },
+      data: { isHighlighted: true, highlightedAt: new Date() },
+    });
+
+    return { message: '帖子已加精' };
+  }
+
+  /**
+   * 取消精华
+   */
+  async unhighlightPost(postId: string) {
+    await this.prisma.post.update({
+      where: { id: postId },
+      data: { isHighlighted: false, highlightedAt: null },
+    });
+
+    return { message: '已取消精华' };
+  }
+
+  /**
+   * 锁定帖子（禁止评论）
+   */
+  async lockPost(postId: string) {
+    const post = await this.prisma.post.findUnique({ where: { id: postId } });
+    if (!post || post.isDeleted) {
+      throw new NotFoundException('帖子不存在');
+    }
+
+    await this.prisma.post.update({
+      where: { id: postId },
+      data: { isLocked: true },
+    });
+
+    return { message: '帖子已锁定' };
+  }
+
+  /**
+   * 解锁帖子
+   */
+  async unlockPost(postId: string) {
+    await this.prisma.post.update({
+      where: { id: postId },
+      data: { isLocked: false },
+    });
+
+    return { message: '帖子已解锁' };
+  }
+
+  /**
+   * 隐藏帖子
+   */
+  async hidePost(postId: string) {
+    const post = await this.prisma.post.findUnique({ where: { id: postId } });
+    if (!post || post.isDeleted) {
+      throw new NotFoundException('帖子不存在');
+    }
+
+    await this.prisma.post.update({
+      where: { id: postId },
+      data: { isHidden: true },
+    });
+
+    return { message: '帖子已隐藏' };
+  }
+
+  /**
+   * 取消隐藏帖子
+   */
+  async unhidePost(postId: string) {
+    await this.prisma.post.update({
+      where: { id: postId },
+      data: { isHidden: false },
+    });
+
+    return { message: '帖子已显示' };
+  }
+
+  /**
+   * 批量删除帖子
+   */
+  async bulkDeletePosts(ids: string[]) {
+    const result = await this.prisma.post.updateMany({
+      where: { id: { in: ids } },
+      data: { isDeleted: true, deletedAt: new Date() },
+    });
+
+    return { message: `已删除 ${result.count} 条帖子` };
+  }
+
+  /**
+   * 批量删除评论
+   */
+  async bulkDeleteComments(ids: string[]) {
+    const result = await this.prisma.comment.updateMany({
+      where: { id: { in: ids } },
+      data: { isDeleted: true, deletedAt: new Date() },
+    });
+
+    return { message: `已删除 ${result.count} 条评论` };
   }
 }
