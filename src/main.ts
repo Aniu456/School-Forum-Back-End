@@ -3,11 +3,22 @@ import { AppModule } from './app.module';
 import { VersioningType } from '@nestjs/common';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
-import RedisStore from 'connect-redis';
+import { RedisStore } from 'connect-redis';
 import { createClient } from 'redis';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // CORS 配置：只允许这几个前端端口访问
+  app.enableCors({
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:5173',
+      'http://localhost:5174',
+    ],
+    credentials: true,
+  });
 
   // 使用 cookie-parser 中间件
   app.use(cookieParser());
@@ -25,7 +36,7 @@ async function bootstrap() {
   try {
     await redisClient.connect();
     console.log('✅ Redis Session Store 已连接');
-    sessionStore = new (RedisStore as any)({
+    sessionStore = new RedisStore({
       client: redisClient,
       prefix: 'session:',
     });
@@ -48,27 +59,6 @@ async function bootstrap() {
       },
     }),
   );
-
-  // 启用 CORS
-  const allowedOrigins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',')
-    : ['http://localhost:3001', 'http://127.0.0.1:3001'];
-
-  app.enableCors({
-    origin: (origin, callback) => {
-      // 允许无 origin 的请求（如 Postman、移动应用等）
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true, // 允许发送凭证
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  });
 
   // 开启 URL 版本控制
   app.enableVersioning({
