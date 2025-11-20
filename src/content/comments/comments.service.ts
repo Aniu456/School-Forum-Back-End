@@ -10,6 +10,7 @@ import { PrismaService } from '../../core/prisma/prisma.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { Role } from '@prisma/client';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { PointsService } from '../../users/points.service';
 
 @Injectable()
 export class CommentsService {
@@ -17,6 +18,8 @@ export class CommentsService {
     private prisma: PrismaService,
     @Inject(forwardRef(() => NotificationsService))
     private notificationsService: NotificationsService,
+    @Inject(forwardRef(() => PointsService))
+    private pointsService: PointsService,
   ) { }
 
   /**
@@ -129,6 +132,13 @@ export class CommentsService {
     } catch (error) {
       // 通知发送失败不影响评论创建
       console.error('Failed to send comment notification:', error);
+    }
+
+    // 评论加积分
+    try {
+      await this.pointsService.addPoints(userId, 'COMMENT_CREATED', comment.id);
+    } catch (error) {
+      console.error('Failed to add points for comment creation:', error);
     }
 
     return {
@@ -392,6 +402,13 @@ export class CommentsService {
         data: { commentCount: { decrement: 1 } },
       });
     });
+
+    // 删评论扣积分
+    try {
+      await this.pointsService.addPoints(comment.authorId, 'COMMENT_DELETED', commentId);
+    } catch (error) {
+      console.error('Failed to deduct points for comment deletion:', error);
+    }
 
     return {
       message: '评论删除成功',

@@ -4,6 +4,7 @@ import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
 import { Role } from '@prisma/client';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { RealtimeService } from '../../notifications/realtime.service';
 
 @Injectable()
 export class AnnouncementsService {
@@ -11,6 +12,8 @@ export class AnnouncementsService {
         private readonly prisma: PrismaService,
         @Inject(forwardRef(() => NotificationsService))
         private readonly notificationsService: NotificationsService,
+        @Inject(forwardRef(() => RealtimeService))
+        private readonly realtimeService: RealtimeService,
     ) { }
 
     /**
@@ -34,7 +37,7 @@ export class AnnouncementsService {
             },
         });
 
-        // 如果公告已发布，发送系统通知
+        // 如果公告已发布，发送系统通知和WS广播
         if (dto.isPublished) {
             try {
                 // 获取所有符合条件的用户
@@ -61,6 +64,9 @@ export class AnnouncementsService {
                         }),
                     ),
                 );
+
+                // WebSocket实时广播
+                this.realtimeService.broadcastNewAnnouncement(announcement);
             } catch (error) {
                 console.error('Failed to send announcement notifications:', error);
             }

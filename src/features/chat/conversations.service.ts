@@ -261,6 +261,25 @@ export class ConversationsService {
             }),
         ]);
 
+        const now = new Date();
+
+        // 标记对方发的消息为已读
+        const unreadMessageIds = messages
+            .filter((msg) => msg.senderId !== userId && !msg.isRead)
+            .map((msg) => msg.id);
+
+        if (unreadMessageIds.length > 0) {
+            await this.prisma.message.updateMany({
+                where: {
+                    id: { in: unreadMessageIds },
+                },
+                data: {
+                    isRead: true,
+                    readAt: now,
+                },
+            });
+        }
+
         // 更新最后已读时间
         await this.prisma.conversationParticipant.updateMany({
             where: {
@@ -268,12 +287,19 @@ export class ConversationsService {
                 userId,
             },
             data: {
-                lastReadAt: new Date(),
+                lastReadAt: now,
             },
         });
 
+        // 返回带已读状态的消息
+        const messagesWithReadStatus = messages.map((msg) => ({
+            ...msg,
+            isRead: unreadMessageIds.includes(msg.id) ? true : msg.isRead,
+            readAt: unreadMessageIds.includes(msg.id) ? now : msg.readAt,
+        }));
+
         return {
-            data: messages.reverse(), // 反转为正序（旧消息在前）
+            data: messagesWithReadStatus.reverse(), // 反转为正序（旧消息在前）
             meta: {
                 page,
                 limit,

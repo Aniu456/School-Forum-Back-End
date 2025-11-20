@@ -109,10 +109,10 @@ export class SecondhandService {
             throw new Error('无权限');
         }
 
-        // 使用状态标记下架/已售出，保留历史记录
+        // 软删除：标记为已删除
         return this.prisma.secondhandItem.update({
             where: { id },
-            data: { status: ItemStatus.SOLD },
+            data: { isDeleted: true },
         });
     }
 }

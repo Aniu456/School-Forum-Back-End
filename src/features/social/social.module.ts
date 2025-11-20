@@ -7,9 +7,10 @@ import { FollowsController } from './follows/follows.controller';
 import { FollowsService } from './follows/follows.service';
 import { PrismaModule } from '../../core/prisma/prisma.module';
 import { NotificationsModule } from '../../notifications/notifications.module';
+import { PointsModule } from '../../users/points.module';
 
 @Module({
-    imports: [PrismaModule, forwardRef(() => NotificationsModule)],
+    imports: [PrismaModule, forwardRef(() => NotificationsModule), forwardRef(() => PointsModule)],
     controllers: [LikesController, FavoritesController, FollowsController],
     providers: [LikesService, FavoritesService, FollowsService],
     exports: [LikesService, FavoritesService, FollowsService],

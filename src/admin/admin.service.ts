@@ -1,11 +1,16 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { PointsService } from '../users/points.service';
 
 @Injectable()
 export class AdminService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        @Inject(forwardRef(() => PointsService))
+        private readonly pointsService: PointsService,
+    ) { }
 
     /**
      * 获取用户列表（管理员），排除当前管理员自己
@@ -163,8 +168,16 @@ export class AdminService {
             throw new NotFoundException('评论不存在');
         }
 
-        await this.prisma.comment.delete({
-            where: { id: commentId },
+        // 使用事务同步更新帖子评论数
+        await this.prisma.$transaction(async (tx) => {
+            await tx.comment.delete({
+                where: { id: commentId },
+            });
+
+            await tx.post.update({
+                where: { id: comment.postId },
+                data: { commentCount: { decrement: 1 } },
+            });
         });
 
         return {
@@ -563,6 +576,13 @@ export class AdminService {
             data: { isHighlighted: true, highlightedAt: new Date() },
         });
 
+        // 加精奖励积分
+        try {
+            await this.pointsService.addPoints(post.authorId, 'POST_HIGHLIGHTED', postId);
+        } catch (error) {
+            console.error('Failed to add points for post highlight:', error);
+        }
+
         return { message: '帖子已加精', post: updatedPost };
     }
 
@@ -660,6 +680,7 @@ export class AdminService {
      * 批量删除帖子
      */
     async bulkDeletePosts(ids: string[]) {
+        // Prisma 的 CASCADE 会自动删除关联的评论、点赞等
         const result = await this.prisma.post.deleteMany({
             where: { id: { in: ids } },
         });
@@ -671,10 +692,42 @@ export class AdminService {
      * 批量删除评论
      */
     async bulkDeleteComments(ids: string[]) {
-        const result = await this.prisma.comment.deleteMany({
+        // 先获取所有要删除的评论及其所属帖子
+        const comments = await this.prisma.comment.findMany({
             where: { id: { in: ids } },
+            select: { id: true, postId: true },
         });
 
-        return { message: `已删除 ${result.count} 条评论` };
+        if (comments.length === 0) {
+            return { message: '没有找到要删除的评论' };
+        }
+
+        // 统计每个帖子需要减少的评论数
+        const postCommentCounts = new Map<string, number>();
+        comments.forEach(comment => {
+            const count = postCommentCounts.get(comment.postId) || 0;
+            postCommentCounts.set(comment.postId, count + 1);
+        });
+
+        // 使用事务批量删除评论并更新计数
+        await this.prisma.$transaction(async (tx) => {
+            // 删除评论
+            await tx.comment.deleteMany({
+                where: { id: { in: ids } },
+            });
+
+            // 更新各帖子的评论数
+            const updatePromises = Array.from(postCommentCounts.entries()).map(
+                ([postId, decrementCount]) =>
+                    tx.post.update({
+                        where: { id: postId },
+                        data: { commentCount: { decrement: decrementCount } },
+                    })
+            );
+
+            await Promise.all(updatePromises);
+        });
+
+        return { message: `已删除 ${comments.length} 条评论` };
     }
 }

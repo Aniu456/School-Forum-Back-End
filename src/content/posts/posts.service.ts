@@ -10,6 +10,7 @@ import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { Role } from '@prisma/client';
 import { RealtimeService } from '../../notifications/realtime.service';
+import { PointsService } from '../../users/points.service';
 
 @Injectable()
 export class PostsService {
@@ -17,6 +18,8 @@ export class PostsService {
     private prisma: PrismaService,
     @Inject(forwardRef(() => RealtimeService))
     private realtimeService: RealtimeService,
+    @Inject(forwardRef(() => PointsService))
+    private pointsService: PointsService,
   ) { }
 
   /**
@@ -44,6 +47,13 @@ export class PostsService {
     });
 
     void this.realtimeService.broadcastNewPost(post.id, userId);
+
+    // 发帖加积分
+    try {
+      await this.pointsService.addPoints(userId, 'POST_CREATED', post.id);
+    } catch (error) {
+      console.error('Failed to add points for post creation:', error);
+    }
 
     return {
       ...post,
@@ -289,6 +299,13 @@ export class PostsService {
     await this.prisma.post.delete({
       where: { id: postId },
     });
+
+    // 删帖扣积分
+    try {
+      await this.pointsService.addPoints(post.authorId, 'POST_DELETED', postId);
+    } catch (error) {
+      console.error('Failed to deduct points for post deletion:', error);
+    }
 
     return { message: '帖子删除成功' };
   }

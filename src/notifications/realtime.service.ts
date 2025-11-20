@@ -97,4 +97,17 @@ export class RealtimeService {
 
         this.gateway.notifyUser(followingId, notification);
     }
+
+    /**
+     * 广播新公告给所有在线用户（WS实时推送）
+     */
+    broadcastNewAnnouncement(announcement: any) {
+        this.gateway.server.emit('announcement:new', {
+            id: announcement.id,
+            title: announcement.title,
+            content: announcement.content,
+            createdAt: announcement.createdAt,
+            isPinned: announcement.isPinned,
+        });
+    }
 }

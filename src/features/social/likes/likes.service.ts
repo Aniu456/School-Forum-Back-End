@@ -9,6 +9,7 @@ import { PrismaService } from '../../../core/prisma/prisma.service';
 import { ToggleLikeDto } from './dto/toggle-like.dto';
 import { TargetType } from '@prisma/client';
 import { NotificationsService } from '../../../notifications/notifications.service';
+import { PointsService } from '../../../users/points.service';
 
 @Injectable()
 export class LikesService {
@@ -16,6 +17,8 @@ export class LikesService {
     private prisma: PrismaService,
     @Inject(forwardRef(() => NotificationsService))
     private notificationsService: NotificationsService,
+    @Inject(forwardRef(() => PointsService))
+    private pointsService: PointsService,
   ) { }
 
   /**
@@ -65,6 +68,26 @@ export class LikesService {
       });
       isLiked = false;
       message = '取消点赞成功';
+
+      // 取消点赞时给被点赞者扣积分
+      try {
+        const target =
+          targetType === TargetType.POST
+            ? await this.prisma.post.findUnique({
+              where: { id: targetId },
+              select: { authorId: true },
+            })
+            : await this.prisma.comment.findUnique({
+              where: { id: targetId },
+              select: { authorId: true },
+            });
+
+        if (target && target.authorId !== userId) {
+          await this.pointsService.addPoints(target.authorId, 'LIKE_REMOVED', targetId);
+        }
+      } catch (error) {
+        console.error('Failed to deduct points for like removal:', error);
+      }
     } else {
       // 未点赞，添加点赞
       await this.prisma.$transaction(async (tx) => {
@@ -116,6 +139,14 @@ export class LikesService {
                 : `赞了你的评论: ${(target as any).content?.substring(0, 30)}...`,
             relatedId: targetId,
           });
+        }
+        // 点赞时给被点赞者加积分
+        if (target && target.authorId !== userId) {
+          try {
+            await this.pointsService.addPoints(target.authorId, 'RECEIVED_LIKE', targetId);
+          } catch (error) {
+            console.error('Failed to add points for receiving like:', error);
+          }
         }
       } catch (error) {
         console.error('Failed to send like notification:', error);
