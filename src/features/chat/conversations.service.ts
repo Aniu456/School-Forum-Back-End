@@ -293,32 +293,29 @@ export class ConversationsService {
         // 验证会话存在且用户有权限
         await this.getConversation(conversationId, userId);
 
-        const message = await this.prisma.$transaction(async (tx) => {
-            const newMessage = await tx.message.create({
-                data: {
-                    conversationId,
-                    senderId: userId,
-                    content: sendDto.content,
-                },
-                include: {
-                    sender: {
-                        select: {
-                            id: true,
-                            username: true,
-                            nickname: true,
-                            avatar: true,
-                        },
+        // 创建消息
+        const message = await this.prisma.message.create({
+            data: {
+                conversationId,
+                senderId: userId,
+                content: sendDto.content,
+            },
+            include: {
+                sender: {
+                    select: {
+                        id: true,
+                        username: true,
+                        nickname: true,
+                        avatar: true,
                     },
                 },
-            });
+            },
+        });
 
-            // 更新会话的updatedAt以便排序
-            await tx.conversation.update({
-                where: { id: conversationId },
-                data: { updatedAt: new Date() },
-            });
-
-            return newMessage;
+        // 更新会话的updatedAt以便排序（触发数据库自动更新）
+        await this.prisma.conversation.update({
+            where: { id: conversationId },
+            data: { updatedAt: new Date() },
         });
 
         // 发送私信通知给对方

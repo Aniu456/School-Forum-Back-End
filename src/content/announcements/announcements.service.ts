@@ -39,7 +39,7 @@ export class AnnouncementsService {
             try {
                 // 获取所有符合条件的用户
                 const where: any = {};
-                if (dto.targetRole && dto.targetRole !== 'ALL') {
+                if (dto.targetRole) {
                     where.role = dto.targetRole;
                 }
 

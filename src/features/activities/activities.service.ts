@@ -82,7 +82,6 @@ export class ActivitiesService {
                 where: {
                     authorId: { in: followingIds },
                     isPublished: true,
-                    isHidden: false,
                 },
                 include: {
                     author: {
@@ -121,7 +120,7 @@ export class ActivitiesService {
             ...announcements.map((a) => ({
                 type: 'ANNOUNCEMENT',
                 id: a.id,
-                author: a.publisher,
+                author: a.author,
                 content: a.title,
                 createdAt: a.createdAt,
                 data: a,

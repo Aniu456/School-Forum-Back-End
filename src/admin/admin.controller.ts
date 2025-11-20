@@ -231,6 +231,16 @@ export class AdminController {
   }
 
   /**
+   * 获取评论详情（管理员）
+   * GET /admin/comments/:id
+   */
+  @Roles(Role.ADMIN)
+  @Get('admin/comments/:id')
+  async getCommentDetail(@Param('id') commentId: string) {
+    return this.adminService.getCommentDetail(commentId);
+  }
+
+  /**
    * 获取评论列表（管理员）
    * GET /admin/comments
    */

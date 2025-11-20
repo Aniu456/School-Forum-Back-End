@@ -306,6 +306,37 @@ export class AdminService {
     }
 
     /**
+     * 获取帖子详情（管理员）
+     */
+    async getPostDetail(postId: string) {
+        const post = await this.prisma.post.findUnique({
+            where: { id: postId },
+            include: {
+                author: {
+                    select: {
+                        id: true,
+                        username: true,
+                        nickname: true,
+                        avatar: true,
+                        role: true,
+                    },
+                },
+                _count: {
+                    select: {
+                        comments: true,
+                    },
+                },
+            },
+        });
+
+        if (!post) {
+            throw new NotFoundException('帖子不存在');
+        }
+
+        return post;
+    }
+
+    /**
      * 获取帖子列表（管理员）
      */
     async getPosts(
@@ -371,7 +402,58 @@ export class AdminService {
     }
 
     /**
-     * 获取评论列表（管理员）
+     * 获取评论详情（管理员）
+     */
+    async getCommentDetail(commentId: string) {
+        const comment = await this.prisma.comment.findUnique({
+            where: { id: commentId },
+            include: {
+                author: {
+                    select: {
+                        id: true,
+                        username: true,
+                        nickname: true,
+                        avatar: true,
+                    },
+                },
+                post: {
+                    select: {
+                        id: true,
+                        title: true,
+                        author: {
+                            select: {
+                                id: true,
+                                username: true,
+                                nickname: true,
+                            },
+                        },
+                    },
+                },
+                parent: {
+                    select: {
+                        id: true,
+                        content: true,
+                        author: {
+                            select: {
+                                id: true,
+                                username: true,
+                                nickname: true,
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!comment) {
+            throw new NotFoundException('评论不存在');
+        }
+
+        return comment;
+    }
+
+    /**
+     * 获论列表（管理员）
      */
     async getComments(
         page: number,
