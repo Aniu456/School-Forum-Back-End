@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from './prisma/prisma.service';
-import { RedisService } from './redis/redis.service';
+import { PrismaService } from './core/prisma/prisma.service';
+import { RedisService } from './core/redis/redis.service';
 
 @Injectable()
 export class AppService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-  ) {}
+  ) { }
 
   /**
    * 系统健康状态检查

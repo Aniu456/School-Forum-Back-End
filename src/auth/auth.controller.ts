@@ -4,11 +4,11 @@ import { RegisterDto } from './dto/register.dto';
 import { RegisterAdminDto } from './dto/register-admin.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { Public } from '../common/decorators/public.decorator';
+import { Public } from '../core/common/decorators/public.decorator';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   /**
    * 用户注册（普通学生）
@@ -61,5 +61,29 @@ export class AuthController {
   async logout() {
     // Token 黑名单实现（可选）
     return { message: '登出成功' };
+  }
+
+  /**
+   * 忘记密码 - 发送验证码
+   * POST /auth/forgot-password
+   */
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() dto: { email: string }) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  /**
+   * 重置密码
+   * POST /auth/reset-password
+   */
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(
+    @Body() dto: { email: string; code: string; newPassword: string },
+  ) {
+    return this.authService.resetPassword(dto.email, dto.code, dto.newPassword);
   }
 }

@@ -12,61 +12,18 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { AdminService } from './admin.service';
-import { CreateReportDto } from './dto/create-report.dto';
-import { HandleReportDto } from './dto/handle-report.dto';
-import { ResetUserPasswordDto } from './dto/reset-user-password.dto';
-import { UpdateUserRoleDto } from './dto/update-user-role.dto';
-import { ToggleUserPermissionDto } from './dto/toggle-user-permission.dto';
-import { BulkDeleteDto } from './dto/bulk-delete.dto';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Roles } from '../common/decorators/roles.decorator';
-import { Role, ReportStatus, ReportTarget } from '@prisma/client';
+import { AdminService } from '../admin/admin.service';
+import { ResetUserPasswordDto } from '../admin/dto/reset-user-password.dto';
+import { UpdateUserRoleDto } from '../admin/dto/update-user-role.dto';
+import { ToggleUserPermissionDto } from '../admin/dto/toggle-user-permission.dto';
+import { BulkDeleteDto } from '../admin/dto/bulk-delete.dto';
+import { CurrentUser } from '../core/common/decorators/current-user.decorator';
+import { Roles } from '../core/common/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 
 @Controller()
 export class AdminController {
   constructor(private readonly adminService: AdminService) { }
-
-  /**
-   * 创建举报
-   * POST /reports
-   */
-  @Post('reports')
-  async createReport(
-    @CurrentUser('id') userId: string,
-    @Body() createReportDto: CreateReportDto,
-  ) {
-    return this.adminService.createReport(userId, createReportDto);
-  }
-
-  /**
-   * 获取举报列表（管理员）
-   * GET /admin/reports
-   */
-  @Roles(Role.ADMIN)
-  @Get('admin/reports')
-  async getReports(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
-    @Query('status') status?: ReportStatus,
-    @Query('targetType') targetType?: ReportTarget,
-  ) {
-    return this.adminService.getReports(page, limit, status, targetType);
-  }
-
-  /**
-   * 处理举报（管理员）
-   * PATCH /admin/reports/:id
-   */
-  @Roles(Role.ADMIN)
-  @Patch('admin/reports/:id')
-  async handleReport(
-    @Param('id') reportId: string,
-    @CurrentUser('id') handlerId: string,
-    @Body() handleReportDto: HandleReportDto,
-  ) {
-    return this.adminService.handleReport(reportId, handlerId, handleReportDto);
-  }
 
   /**
    * 获取用户列表（管理员）
@@ -75,6 +32,7 @@ export class AdminController {
   @Roles(Role.ADMIN)
   @Get('admin/users')
   async getUsers(
+    @CurrentUser('id') currentUserId: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
     @Query('role') role?: Role,
@@ -88,7 +46,7 @@ export class AdminController {
       isBannedBool = false;
     }
 
-    return this.adminService.getUsers(page, limit, role, isBannedBool);
+    return this.adminService.getUsers(currentUserId, page, limit, role, isBannedBool);
   }
 
   /**
@@ -116,11 +74,40 @@ export class AdminController {
   /**
    * 获取系统统计数据（管理员）
    * GET /admin/statistics
+   * GET /admin/statistics/overview (别名)
    */
   @Roles(Role.ADMIN)
   @Get('admin/statistics')
   async getStatistics() {
     return this.adminService.getStatistics();
+  }
+
+  @Roles(Role.ADMIN)
+  @Get('admin/statistics/overview')
+  async getStatisticsOverview() {
+    return this.adminService.getStatistics();
+  }
+
+  /**
+   * 删除用户（管理员）
+   * DELETE /admin/users/:id
+   */
+  @Roles(Role.ADMIN)
+  @Delete('admin/users/:id')
+  @HttpCode(HttpStatus.OK)
+  async deleteUser(@Param('id') userId: string) {
+    return this.adminService.deleteUser(userId);
+  }
+
+  /**
+   * 删除单条评论（管理员）
+   * DELETE /admin/comments/:id
+   */
+  @Roles(Role.ADMIN)
+  @Delete('admin/comments/:id')
+  @HttpCode(HttpStatus.OK)
+  async deleteComment(@Param('id') commentId: string) {
+    return this.adminService.deleteComment(commentId);
   }
 
   // ============================================
@@ -202,6 +189,62 @@ export class AdminController {
   // ============================================
   // 内容管理新增功能
   // ============================================
+
+  /**
+   * 获取帖子详情（管理员）
+   * GET /admin/posts/:id
+   */
+  @Roles(Role.ADMIN)
+  @Get('admin/posts/:id')
+  async getPostDetail(@Param('id') postId: string) {
+    return this.adminService.getPostDetail(postId);
+  }
+
+  /**
+   * 获取帖子列表（管理员）
+   * GET /admin/posts
+   */
+  @Roles(Role.ADMIN)
+  @Get('admin/posts')
+  async getPosts(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('isPinned') isPinned?: string,
+    @Query('isHighlighted') isHighlighted?: string,
+    @Query('keyword') keyword?: string,
+    @Query('authorId') authorId?: string,
+    @Query('tag') tag?: string,
+  ) {
+    return this.adminService.getPosts(
+      page,
+      limit,
+      isPinned === 'true' ? true : isPinned === 'false' ? false : undefined,
+      isHighlighted === 'true'
+        ? true
+        : isHighlighted === 'false'
+          ? false
+          : undefined,
+      keyword,
+      authorId,
+      tag,
+    );
+  }
+
+  /**
+   * 获取评论列表（管理员）
+   * GET /admin/comments
+   */
+  @Roles(Role.ADMIN)
+  @Get('admin/comments')
+  async getComments(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('keyword') keyword?: string,
+    @Query('authorId') authorId?: string,
+    @Query('postId') postId?: string,
+  ) {
+    return this.adminService.getComments(page, limit, keyword, authorId, postId);
+  }
 
   /**
    * 置顶帖子（管理员）

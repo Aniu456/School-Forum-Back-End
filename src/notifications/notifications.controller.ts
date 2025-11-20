@@ -13,7 +13,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CurrentUser } from '../core/common/decorators/current-user.decorator';
 import { NotificationType } from '@prisma/client';
 
 @Controller('notifications')

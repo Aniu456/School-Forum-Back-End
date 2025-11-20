@@ -1,29 +1,32 @@
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { NotificationsGateway } from './notifications.gateway';
 import { NotificationEmitterService } from './notification-emitter.service';
+import { RealtimeService } from './realtime.service';
+import { JwtModule } from '@nestjs/jwt';
+import { PrismaModule } from '../core/prisma/prisma.module';
 
 @Module({
   imports: [
+    PrismaModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'your-secret-key',
-      signOptions: { expiresIn: '24h' },
+      secret: process.env.JWT_SECRET || 'fallback-secret',
+      signOptions: { expiresIn: '7d' },
     }),
   ],
   controllers: [NotificationsController],
-  // ⭐️ NotificationEmitterService 中已经使用 forwardRef 处理循环依赖
-  // 所以这里直接提供即可，NestJS 会自动处理
   providers: [
     NotificationsService,
     NotificationsGateway,
     NotificationEmitterService,
+    RealtimeService,
   ],
   exports: [
     NotificationsService,
     NotificationsGateway,
     NotificationEmitterService,
+    RealtimeService,
   ],
 })
-export class NotificationsModule {}
+export class NotificationsModule { }

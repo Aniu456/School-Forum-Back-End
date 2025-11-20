@@ -10,9 +10,9 @@ import {
   corsConfig,
   sessionConfig,
   redisConfig,
-} from './config/app.config';
-import { AllExceptionsFilter } from './common/filters';
-import { TransformInterceptor } from './common/interceptors';
+} from './core/config/app.config';
+import { AllExceptionsFilter } from './core/common/filters';
+import { TransformInterceptor } from './core/common/interceptors';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

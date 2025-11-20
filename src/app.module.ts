@@ -3,29 +3,25 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { AdminModule } from './admin/admin.module';
-import { AlgorithmsModule } from './algorithms/algorithms.module';
-import { AnnouncementsModule } from './announcements/announcements.module';
+import { AnnouncementsModule } from './content/announcements/announcements.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
-import { CommentsModule } from './comments/comments.module';
-import { CommonModule } from './common/common.module';
-import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
-import { RolesGuard } from './common/guards/roles.guard';
-import { LoggerMiddleware } from './common/middleware/logger.middleware';
-import { DraftsModule } from './drafts/drafts.module';
-import { FavoritesModule } from './favorites/favorites.module';
-import { FollowsModule } from './follows/follows.module';
-import { LikesModule } from './likes/likes.module';
-import { PointsModule } from './points/points.module';
-import { MarketplaceModule } from './marketplace/marketplace.module';
+import { CommentsModule } from './content/comments/comments.module';
+import { CommonModule } from './core/common/common.module';
+import { JwtAuthGuard } from './core/common/guards/jwt-auth.guard';
+import { RolesGuard } from './core/common/guards/roles.guard';
+import { LoggerMiddleware } from './core/common/middleware/logger.middleware';
+import { MarketplaceModule } from './features/marketplace/marketplace.module';
 import { NotificationsModule } from './notifications/notifications.module';
-import { PostsModule } from './posts/posts.module';
-import { PrismaModule } from './prisma/prisma.module';
-import { RealtimeModule } from './realtime/realtime.module';
-import { RecommendationsModule } from './recommendations/recommendations.module';
-import { RedisModule } from './redis/redis.module';
-import { SearchModule } from './search/search.module';
+import { PostsModule } from './content/posts/posts.module';
+import { ConversationsModule } from './features/chat/conversations.module';
+import { ActivitiesModule } from './features/activities/activities.module';
+import { PrismaModule } from './core/prisma/prisma.module';
+import { RecommendationsModule } from './features/recommendations/recommendations.module';
+import { RedisModule } from './core/redis/redis.module';
+import { SearchModule } from './features/search/search.module';
+import { SocialModule } from './features/social/social.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -49,19 +45,15 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     PostsModule,
     CommentsModule,
-    LikesModule,
     SearchModule,
     NotificationsModule,
     AdminModule,
-    FollowsModule,
-    FavoritesModule,
-    DraftsModule,
     RecommendationsModule,
     AnnouncementsModule,
-    RealtimeModule,
-    AlgorithmsModule,
-    PointsModule,
     MarketplaceModule,
+    SocialModule,
+    ConversationsModule,
+    ActivitiesModule,
   ],
   controllers: [AppController],
   providers: [

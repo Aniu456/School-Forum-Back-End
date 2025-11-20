@@ -13,9 +13,9 @@ import {
 import { UsersService } from './users.service';
 import { UsersActivityService } from './users-activity.service';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { LikesService } from '../likes/likes.service';
-import { Public } from '../common/decorators/public.decorator';
+import { CurrentUser } from '../core/common/decorators/current-user.decorator';
+import { LikesService } from '../features/social/likes/likes.service';
+import { Public } from '../core/common/decorators/public.decorator';
 
 @Controller('users')
 export class UsersController {

@@ -3,12 +3,12 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../core/prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * 获取当前用户的完整资料
@@ -143,7 +143,6 @@ export class UsersService {
       this.prisma.post.findMany({
         where: {
           authorId: userId,
-          isDeleted: false,
         },
         select: {
           id: true,
@@ -176,7 +175,6 @@ export class UsersService {
       this.prisma.post.count({
         where: {
           authorId: userId,
-          isDeleted: false,
         },
       }),
     ]);

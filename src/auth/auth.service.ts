@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../core/prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterAdminDto } from './dto/register-admin.dto';
 import { LoginDto } from './dto/login.dto';
@@ -33,7 +33,7 @@ export class AuthService {
     if (!this.jwtSecret || !this.jwtRefreshSecret) {
       throw new Error(
         '❌ 缺少必需的环境变量: JWT_SECRET 或 JWT_REFRESH_SECRET\n' +
-          '请在 .env 文件中设置这些变量',
+        '请在 .env 文件中设置这些变量',
       );
     }
 
@@ -234,6 +234,15 @@ export class AuthService {
       throw new ForbiddenException('管理员注册密钥无效');
     }
 
+    // 检查是否已存在管理员（系统只允许一个管理员账号）
+    const existingAdmin = await this.prisma.user.findFirst({
+      where: { role: Role.ADMIN },
+    });
+
+    if (existingAdmin) {
+      throw new ForbiddenException('管理员账号已存在，系统只允许一个管理员');
+    }
+
     // 检查用户名是否已存在
     const existingUsername = await this.prisma.user.findUnique({
       where: { username: registerAdminDto.username },
@@ -281,6 +290,80 @@ export class AuthService {
     return {
       user: admin,
       ...tokens,
+    };
+  }
+
+  /**
+   * 忘记密码 - 发送验证码
+   */
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('该邮箱未注册');
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await this.prisma.verificationCode.create({
+      data: {
+        email,
+        code,
+        type: 'RESET_PASSWORD',
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        userId: user.id,
+      },
+    });
+
+    console.log(`Password reset code for ${email}: ${code}`);
+
+    return {
+      message: '验证码已发送到邮箱',
+      ...(process.env.NODE_ENV === 'development' && { code }),
+    };
+  }
+
+  /**
+   * 重置密码
+   */
+  async resetPassword(email: string, code: string, newPassword: string) {
+    const verification = await this.prisma.verificationCode.findFirst({
+      where: {
+        email,
+        code,
+        type: 'RESET_PASSWORD',
+        isUsed: false,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!verification) {
+      throw new UnauthorizedException('验证码无效或已过期');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('用户不存在');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    });
+
+    await this.prisma.verificationCode.update({
+      where: { id: verification.id },
+      data: { isUsed: true },
+    });
+
+    return {
+      message: '密码重置成功',
     };
   }
 }

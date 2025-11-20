@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../core/prisma/prisma.service';
 
 @Injectable()
 export class UsersActivityService {
@@ -29,7 +29,7 @@ export class UsersActivityService {
     private async getUserPosts(userId: string, skip: number, limit: number) {
         const [posts, total] = await Promise.all([
             this.prisma.post.findMany({
-                where: { authorId: userId, isDeleted: false },
+                where: { authorId: userId },
                 orderBy: { createdAt: 'desc' },
                 skip,
                 take: limit,
@@ -45,7 +45,7 @@ export class UsersActivityService {
                 },
             }),
             this.prisma.post.count({
-                where: { authorId: userId, isDeleted: false },
+                where: { authorId: userId },
             }),
         ]);
 
@@ -55,7 +55,7 @@ export class UsersActivityService {
     private async getUserComments(userId: string, skip: number, limit: number) {
         const [comments, total] = await Promise.all([
             this.prisma.comment.findMany({
-                where: { authorId: userId, isDeleted: false },
+                where: { authorId: userId },
                 orderBy: { createdAt: 'desc' },
                 skip,
                 take: limit,
@@ -69,7 +69,7 @@ export class UsersActivityService {
                 },
             }),
             this.prisma.comment.count({
-                where: { authorId: userId, isDeleted: false },
+                where: { authorId: userId },
             }),
         ]);
 
@@ -204,10 +204,10 @@ export class UsersActivityService {
         const [posts, comments, likes, favorites, following, followers] =
             await Promise.all([
                 this.prisma.post.count({
-                    where: { authorId: userId, isDeleted: false },
+                    where: { authorId: userId },
                 }),
                 this.prisma.comment.count({
-                    where: { authorId: userId, isDeleted: false },
+                    where: { authorId: userId },
                 }),
                 this.prisma.like.count({ where: { userId } }),
                 this.prisma.favorite.count({ where: { userId } }),
@@ -216,7 +216,7 @@ export class UsersActivityService {
             ]);
 
         const recentPosts = await this.prisma.post.findMany({
-            where: { authorId: userId, isDeleted: false },
+            where: { authorId: userId },
             orderBy: { createdAt: 'desc' },
             take: 5,
             select: {
@@ -230,7 +230,7 @@ export class UsersActivityService {
         });
 
         const recentComments = await this.prisma.comment.findMany({
-            where: { authorId: userId, isDeleted: false },
+            where: { authorId: userId },
             orderBy: { createdAt: 'desc' },
             take: 5,
             include: {
