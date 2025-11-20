@@ -2,13 +2,20 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFollowDto } from './dto/create-follow.dto';
+import { RealtimeService } from '../realtime/realtime.service';
 
 @Injectable()
 export class FollowsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => RealtimeService))
+    private realtimeService: RealtimeService,
+  ) { }
 
   /**
    * 关注用户
@@ -71,6 +78,8 @@ export class FollowsService {
         } as any,
       }),
     ]);
+
+    void this.realtimeService.notifyNewFollower(userId, followingId);
 
     return {
       message: '关注成功',

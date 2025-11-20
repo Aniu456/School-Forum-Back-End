@@ -11,6 +11,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
+import { UsersActivityService } from './users-activity.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { LikesService } from '../likes/likes.service';
@@ -20,9 +21,10 @@ import { Public } from '../common/decorators/public.decorator';
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
+    private readonly usersActivityService: UsersActivityService,
     @Inject(forwardRef(() => LikesService))
     private readonly likesService: LikesService,
-  ) {}
+  ) { }
 
   /**
    * 获取当前用户资料
@@ -79,5 +81,21 @@ export class UsersController {
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
     return this.likesService.getUserLikes(userId, page, limit);
+  }
+
+  @Public()
+  @Get(':id/activity')
+  async getUserActivity(
+    @Param('id') userId: string,
+    @Query('type') type?: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit?: number,
+  ) {
+    return this.usersActivityService.getUserActivity(
+      userId,
+      type,
+      page,
+      limit,
+    );
   }
 }

@@ -254,7 +254,7 @@ src/
 - username (唯一索引)
 - email (唯一索引)
 - password (加密)
-- role (STUDENT/TEACHER/ADMIN)
+- role (USER/ADMIN)
 - created_at, updated_at
 
 #### posts (帖子表)

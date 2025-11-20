@@ -12,7 +12,7 @@ import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AdminService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   /**
    * 创建举报
@@ -195,7 +195,6 @@ export class AdminService {
           id: true,
           username: true,
           email: true,
-          studentId: true,
           nickname: true,
           avatar: true,
           role: true,
@@ -428,7 +427,11 @@ export class AdminService {
   /**
    * 查看用户登录历史（管理员）
    */
-  async getUserLoginHistory(userId: string, page: number = 1, limit: number = 20) {
+  async getUserLoginHistory(
+    userId: string,
+    page: number = 1,
+    limit: number = 20,
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });

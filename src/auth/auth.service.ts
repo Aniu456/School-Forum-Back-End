@@ -2,7 +2,6 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
-  BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -28,17 +27,19 @@ export class AuthService {
   ) {
     // 🛡️ 验证必需的环境变量（启动时检查）
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
-    this.jwtRefreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET')!;
+    this.jwtRefreshSecret =
+      this.configService.get<string>('JWT_REFRESH_SECRET')!;
 
     if (!this.jwtSecret || !this.jwtRefreshSecret) {
       throw new Error(
         '❌ 缺少必需的环境变量: JWT_SECRET 或 JWT_REFRESH_SECRET\n' +
-        '请在 .env 文件中设置这些变量',
+          '请在 .env 文件中设置这些变量',
       );
     }
 
     // 设置默认过期时间
-    this.jwtExpiresIn = this.configService.get<string>('JWT_EXPIRES_IN') || '15m';
+    this.jwtExpiresIn =
+      this.configService.get<string>('JWT_EXPIRES_IN') || '15m';
     this.jwtRefreshExpiresIn =
       this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
   }
@@ -68,21 +69,19 @@ export class AuthService {
     // 密码加密
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-    // 创建用户（强制设置为 STUDENT 角色）
+    // 创建用户（强制设置为 USER 角色）
     const user = await this.prisma.user.create({
       data: {
         username: registerDto.username,
         email: registerDto.email,
         password: hashedPassword,
-        studentId: registerDto.studentId,
         nickname: registerDto.nickname || registerDto.username,
-        role: Role.STUDENT, // 强制设置为学生角色
+        role: Role.USER, // 强制设置为普通用户角色
       },
       select: {
         id: true,
         username: true,
         email: true,
-        studentId: true,
         nickname: true,
         role: true,
         createdAt: true,
@@ -134,7 +133,7 @@ export class AuthService {
     const tokens = await this.generateTokens(user.id, user.email, user.role);
 
     // 返回用户信息（不包含密码）
-    const { password, ...userWithoutPassword } = user;
+    const { password: _password, ...userWithoutPassword } = user;
 
     return {
       user: userWithoutPassword,
@@ -173,7 +172,7 @@ export class AuthService {
 
       // 生成新的 Token
       return this.generateTokens(user.id, user.email, user.role);
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException('Refresh Token 无效或已过期');
     }
   }
@@ -185,14 +184,16 @@ export class AuthService {
     const payload = { sub: userId, email, role };
 
     const [accessToken, refreshToken] = await Promise.all([
+      // @ts-expect-error - NestJS JwtService 类型定义不支持自定义 secret，但运行时支持
       this.jwtService.signAsync(payload, {
         secret: this.jwtSecret, // 使用类属性（已在构造函数中验证）
         expiresIn: this.jwtExpiresIn,
-      } as any),
+      }),
+      // @ts-expect-error - NestJS JwtService 类型定义不支持自定义 secret，但运行时支持
       this.jwtService.signAsync(payload, {
         secret: this.jwtRefreshSecret, // 使用类属性
         expiresIn: this.jwtRefreshExpiresIn,
-      } as any),
+      }),
     ]);
 
     return {

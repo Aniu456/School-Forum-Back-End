@@ -2,15 +2,22 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { Role } from '@prisma/client';
+import { RealtimeService } from '../realtime/realtime.service';
 
 @Injectable()
 export class PostsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => RealtimeService))
+    private realtimeService: RealtimeService,
+  ) { }
 
   /**
    * 创建帖子
@@ -35,6 +42,8 @@ export class PostsService {
         },
       },
     });
+
+    void this.realtimeService.broadcastNewPost(post.id, userId);
 
     return {
       ...post,

@@ -1,64 +1,67 @@
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
+import { AdminModule } from './admin/admin.module';
+import { AlgorithmsModule } from './algorithms/algorithms.module';
+import { AnnouncementsModule } from './announcements/announcements.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PrismaModule } from './prisma/prisma.module';
-import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './users/users.module';
-import { PostsModule } from './posts/posts.module';
 import { CommentsModule } from './comments/comments.module';
-import { LikesModule } from './likes/likes.module';
-import { SearchModule } from './search/search.module';
-import { NotificationsModule } from './notifications/notifications.module';
-import { AdminModule } from './admin/admin.module';
-import { FollowsModule } from './follows/follows.module';
-import { FavoritesModule } from './favorites/favorites.module';
-import { DraftsModule } from './drafts/drafts.module';
-import { RecommendationsModule } from './recommendations/recommendations.module';
-import { AnnouncementsModule } from './announcements/announcements.module';
+import { CommonModule } from './common/common.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
+import { DraftsModule } from './drafts/drafts.module';
+import { FavoritesModule } from './favorites/favorites.module';
+import { FollowsModule } from './follows/follows.module';
+import { LikesModule } from './likes/likes.module';
+import { PointsModule } from './points/points.module';
+import { MarketplaceModule } from './marketplace/marketplace.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { PostsModule } from './posts/posts.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { RealtimeModule } from './realtime/realtime.module';
+import { RecommendationsModule } from './recommendations/recommendations.module';
+import { RedisModule } from './redis/redis.module';
+import { SearchModule } from './search/search.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
-    // 配置模块
+    // ============================================
+    // 核心模块
+    // ============================================
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
     }),
-    // Redis 模块
-    RedisModule,
-    // 数据库模块
+    ScheduleModule.forRoot(),
+    CommonModule,
     PrismaModule,
-    // 认证模块
+    RedisModule,
+
+    // ============================================
+    // 业务模块
+    // ============================================
     AuthModule,
-    // 用户模块
     UsersModule,
-    // 帖子模块
     PostsModule,
-    // 评论模块
     CommentsModule,
-    // 点赞模块
     LikesModule,
-    // 搜索模块
     SearchModule,
-    // 通知模块
     NotificationsModule,
-    // 管理模块
     AdminModule,
-    // 关注模块
     FollowsModule,
-    // 收藏模块
     FavoritesModule,
-    // 草稿模块
     DraftsModule,
-    // 推荐模块
     RecommendationsModule,
-    // 公告模块
     AnnouncementsModule,
+    RealtimeModule,
+    AlgorithmsModule,
+    PointsModule,
+    MarketplaceModule,
   ],
   controllers: [AppController],
   providers: [

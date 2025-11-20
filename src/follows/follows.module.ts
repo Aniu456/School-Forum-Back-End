@@ -1,10 +1,12 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { FollowsController } from './follows.controller';
 import { FollowsService } from './follows.service';
+import { RealtimeModule } from '../realtime/realtime.module';
 
 @Module({
+  imports: [forwardRef(() => RealtimeModule)],
   controllers: [FollowsController],
   providers: [FollowsService],
   exports: [FollowsService],
 })
-export class FollowsModule {}
+export class FollowsModule { }

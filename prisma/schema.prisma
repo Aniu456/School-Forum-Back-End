@@ -18,11 +18,10 @@ model User {
   username       String    @unique @db.VarChar(50)
   email          String    @unique @db.VarChar(100)
   password       String    @db.VarChar(255) // bcrypt 加密
-  studentId      String?   @map("student_id") @db.VarChar(50)
   nickname       String?   @db.VarChar(100)
   avatar         String?   @db.VarChar(500)
   bio            String?   @db.VarChar(500)
-  role           Role      @default(STUDENT)
+  role           Role      @default(USER)
   isActive       Boolean   @default(true) @map("is_active")
   isBanned       Boolean   @default(false) @map("is_banned")
   canPost        Boolean   @default(true) @map("can_post") // 是否允许发帖
@@ -49,6 +48,12 @@ model User {
   loginHistories    UserLoginHistory[] // 登录历史
   verificationCodes VerificationCode[] // 验证码
   announcements     Announcement[] // 发布的公告
+  userPoints        UserPoints? // 积分
+  secondhandItems   SecondhandItem[]
+  studyResources    StudyResource[]
+  clubRecruitments  ClubRecruitment[]
+  lostAndFounds     LostAndFound[]
+  carpools          Carpool[]
 
   @@index([email])
   @@index([username])
@@ -57,7 +62,7 @@ model User {
 
 // 用户角色枚举
 enum Role {
-  STUDENT // 普通用户（开放注册）
+  USER // 普通用户（开放注册）
   ADMIN // 管理员（后台管理系统专用）
 }
 
@@ -92,7 +97,7 @@ model Post {
 
   @@index([authorId, createdAt])
   @@index([createdAt])
-  @@index([tags])
+  @@index([tags], type: Gin)
   @@index([isDeleted])
   @@index([isPinned, createdAt])
   @@index([isHighlighted, createdAt])
@@ -161,7 +166,7 @@ model Notification {
   type      NotificationType
   title     String           @db.VarChar(200)
   content   String           @db.Text
-  relatedId String?          @map("related_id") // 相关帖子/评论ID
+  relatedId String?          @map("related_id") @db.VarChar(50) // 相关帖子 / 评论 / 用户 ID
   isRead    Boolean          @default(false) @map("is_read")
   createdAt DateTime         @default(now()) @map("created_at")
 
@@ -178,6 +183,8 @@ enum NotificationType {
   REPLY // 回复通知
   LIKE // 点赞通知
   SYSTEM // 系统通知
+  NEW_POST // 关注的人发布新帖子
+  NEW_FOLLOWER // 新粉丝关注
 }
 
 // ============================================
@@ -333,7 +340,7 @@ model Favorite {
   post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
   folder Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, postId]) // 同一用户不能重复收藏同一帖子
+  @@unique([userId, postId, folderId]) // 同一用户在同一收藏夹内不能重复收藏同一帖子
   @@index([userId, createdAt])
   @@index([postId])
   @@index([folderId])
@@ -416,4 +423,247 @@ enum AnnouncementType {
   INFO // 一般公告
   WARNING // 警告公告
   URGENT // 紧急公告
+}
+
+// ============================================
+// 用户积分表
+// ============================================
+model UserPoints {
+  id          String   @id @default(uuid())
+  userId      String   @unique @map("user_id")
+  totalPoints Int      @default(0) @map("total_points")
+  level       Int      @default(1)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pointsHistories UserPointsHistory[]
+
+  @@index([totalPoints])
+  @@index([level])
+  @@map("user_points")
+}
+
+// ============================================
+// 积分历史表
+// ============================================
+model UserPointsHistory {
+  id           String       @id @default(uuid())
+  userPointsId String       @map("user_points_id")
+  action       PointsAction
+  points       Int
+  reason       String?      @db.VarChar(200)
+  relatedId    String?      @map("related_id")
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  userPoints UserPoints @relation(fields: [userPointsId], references: [id], onDelete: Cascade)
+
+  @@index([userPointsId, createdAt])
+  @@map("user_points_histories")
+}
+
+// 积分行为枚举
+enum PointsAction {
+  POST_CREATED // 发布帖子 +10
+  POST_DELETED // 删除帖子 -10
+  COMMENT_CREATED // 发布评论 +5
+  COMMENT_DELETED // 删除评论 -5
+  RECEIVED_LIKE // 获得点赞 +2
+  LIKE_REMOVED // 被取消点赞 -2
+  POST_HIGHLIGHTED // 帖子被加精 +50
+  DAILY_LOGIN // 每日登录 +1
+  CONTINUOUS_LOGIN // 连续登录奖励 +5
+  ADMIN_REWARD // 管理员奖励
+  ADMIN_PENALTY // 管理员扣除
+}
+
+// ============================================
+// 二手交易
+// ============================================
+model SecondhandItem {
+  id          String        @id @default(uuid())
+  title       String        @db.VarChar(200)
+  description String        @db.Text
+  price       Float
+  images      String[]
+  category    String        @db.VarChar(50)
+  condition   ItemCondition
+  status      ItemStatus    @default(AVAILABLE)
+  sellerId    String        @map("seller_id")
+  viewCount   Int           @default(0) @map("view_count")
+  location    String?       @db.VarChar(100)
+  contact     String        @db.VarChar(100)
+  isDeleted   Boolean       @default(false) @map("is_deleted")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  seller User @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([category])
+  @@index([sellerId])
+  @@map("secondhand_items")
+}
+
+enum ItemCondition {
+  NEW // 全新
+  LIKE_NEW // 几乎全新
+  GOOD // 良好
+  FAIR // 一般
+  POOR // 较差
+}
+
+enum ItemStatus {
+  AVAILABLE // 在售
+  RESERVED // 已预定
+  SOLD // 已售出
+}
+
+// ============================================
+// 学习资源
+// ============================================
+model StudyResource {
+  id            String       @id @default(uuid())
+  title         String       @db.VarChar(200)
+  description   String       @db.Text
+  category      String       @db.VarChar(50)
+  type          ResourceType
+  fileUrl       String?      @map("file_url") @db.VarChar(500)
+  link          String?      @db.VarChar(500)
+  authorId      String       @map("author_id")
+  tags          String[]
+  viewCount     Int          @default(0) @map("view_count")
+  downloadCount Int          @default(0) @map("download_count")
+  likeCount     Int          @default(0) @map("like_count")
+  isDeleted     Boolean      @default(false) @map("is_deleted")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([category, createdAt])
+  @@index([type])
+  @@index([authorId])
+  @@map("study_resources")
+}
+
+enum ResourceType {
+  DOCUMENT // 文档
+  VIDEO // 视频
+  LINK // 链接
+  CODE // 代码
+  OTHER // 其他
+}
+
+// ============================================
+// 社团招新
+// ============================================
+model ClubRecruitment {
+  id           String            @id @default(uuid())
+  clubName     String            @map("club_name") @db.VarChar(100)
+  description  String            @db.Text
+  requirements String            @db.Text
+  contact      String            @db.VarChar(100)
+  logo         String?           @db.VarChar(500)
+  images       String[]
+  category     String            @db.VarChar(50)
+  recruitCount Int?              @map("recruit_count")
+  deadline     DateTime?
+  publisherId  String            @map("publisher_id")
+  viewCount    Int               @default(0) @map("view_count")
+  status       RecruitmentStatus @default(OPEN)
+  isDeleted    Boolean           @default(false) @map("is_deleted")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  publisher User @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([category])
+  @@index([publisherId])
+  @@map("club_recruitments")
+}
+
+enum RecruitmentStatus {
+  OPEN // 招新中
+  CLOSED // 已结束
+  PAUSED // 暂停
+}
+
+// ============================================
+// 失物招领
+// ============================================
+model LostAndFound {
+  id          String          @id @default(uuid())
+  title       String          @db.VarChar(200)
+  description String          @db.Text
+  images      String[]
+  type        LostFoundType
+  category    String          @db.VarChar(50)
+  location    String          @db.VarChar(200)
+  date        DateTime
+  contact     String          @db.VarChar(100)
+  publisherId String          @map("publisher_id")
+  status      LostFoundStatus @default(OPEN)
+  isDeleted   Boolean         @default(false) @map("is_deleted")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  publisher User @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+
+  @@index([type, status, createdAt])
+  @@index([category])
+  @@index([publisherId])
+  @@map("lost_and_found")
+}
+
+enum LostFoundType {
+  LOST // 寻物
+  FOUND // 招领
+}
+
+enum LostFoundStatus {
+  OPEN // 进行中
+  RESOLVED // 已解决
+  CLOSED // 已关闭
+}
+
+// ============================================
+// 拼车拼单
+// ============================================
+model Carpool {
+  id            String        @id @default(uuid())
+  title         String        @db.VarChar(200)
+  type          CarpoolType
+  departure     String        @db.VarChar(100)
+  destination   String        @db.VarChar(100)
+  departureTime DateTime      @map("departure_time")
+  seats         Int
+  price         Float?
+  description   String?       @db.Text
+  contact       String        @db.VarChar(100)
+  publisherId   String        @map("publisher_id")
+  status        CarpoolStatus @default(OPEN)
+  isDeleted     Boolean       @default(false) @map("is_deleted")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  publisher User @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+
+  @@index([type, status, departureTime])
+  @@index([departure])
+  @@index([destination])
+  @@index([publisherId])
+  @@map("carpools")
+}
+
+enum CarpoolType {
+  CARPOOL // 拼车
+  GROUP_BUY // 拼单
+}
+
+enum CarpoolStatus {
+  OPEN // 进行中
+  FULL // 已满
+  CLOSED // 已结束
 }
