@@ -1,4 +1,8 @@
-# 后台管理系统 API 文档
+# 管理端 / 后台系统端 API 接口文档
+
+> **文档范围说明**：本文档描述的是后端提供的「**管理员端服务 / 后台系统服务**」的所有 HTTP 接口。  
+> 服务对象：**后台管理系统前端**，供管理员进行用户管理、内容审核、数据统计等操作。  
+> 如需查看网站用户端接口，请参阅《网站用户端 API 接口文档》（`API_DOCS_USER.md`）。
 
 ## 基础说明
 
@@ -9,7 +13,7 @@
   `Authorization: Bearer <accessToken>`
 
 - **角色要求**：仅 `role = ADMIN` 的用户可以访问本页所有接口。
-- **响应/错误结构**：与《普通用户端 API 文档》一致，外层均包含：
+- **响应/错误结构**：与《网站用户端 API 文档》一致，外层均包含：
 
   ```json
   {
@@ -263,6 +267,61 @@
   ids: string[];          // 要删除的公告 ID 列表
 }
 ```
+
+---
+
+## 管理端前台能力总览
+
+> **说明**：管理员可以通过"管理端前台界面"（前端管理入口）操作各类管理功能。  
+> 前台操作按钮底层调用的是本文档前述的后台 HTTP 接口（`/admin/*` 和 `/announcements/*`）。  
+> 以下列出前台管理入口的主要能力及其对应的后台接口，方便前端开发者映射 UI 操作到 API 调用。
+
+### 帖子管理（前台管理入口）
+
+前台管理入口会调用后台接口 `/admin/posts` 和 `/admin/posts/:id/*` 完成以下操作：
+
+- 置顶 / 取消置顶帖子
+- 标记精华 / 取消精华
+- 锁定 / 解锁帖子（禁止/允许继续评论）
+- 隐藏 / 取消隐藏帖子
+- 批量删除帖子（**物理删除，数据不可恢复**）
+
+**可用能力一览**：
+
+- **置顶帖子**：`POST /admin/posts/:id/pin` / `DELETE /admin/posts/:id/pin`
+- **精华管理**：`POST /admin/posts/:id/highlight` / `DELETE /admin/posts/:id/highlight`
+- **锁定评论**：`POST /admin/posts/:id/lock` / `DELETE /admin/posts/:id/lock`
+- **隐藏帖子**：`POST /admin/posts/:id/hide` / `POST /admin/posts/:id/unhide`
+- **批量删除帖子**：`POST /admin/posts/bulk-delete`
+
+> 提示：前台不会直接调用 `/posts/:id` 这类通用接口，而是统一走 `/admin/posts/...`，以便做权限控制和审计。
+
+### 评论管理（前台管理入口）
+
+管理员可以在评论管理页面，对评论进行批量删除或针对单条进行删除，这些操作对应后台接口：
+
+- **获取评论列表**：`GET /admin/comments?page=1&limit=20&keyword=内容关键字&authorId=xxx&postId=xxx`
+- **批量删除评论**：`POST /admin/comments/bulk-delete`
+
+> 提示：前台"删除任意评论"的按钮，底层统一调用 `/admin/comments/bulk-delete`，即使只传一个 ID。
+
+### 公告管理（前台管理入口）
+
+公告模块由 `AnnouncementsController` 提供，路由前缀为 `/announcements`。管理员前台常用操作：
+
+- **发布公告**：`POST /announcements`
+  - 请求体：`{ title, content, type?, targetRole?, isPinned?, isPublished? }`
+- **更新公告**：`PUT /announcements/:id`
+  - 请求体：`{ title?, content?, type?, targetRole?, isPinned?, isPublished? }`
+- **删除公告**：`DELETE /announcements/:id`（物理删除）
+- **批量删除公告**：`POST /announcements/admin/bulk-delete`
+  - 请求体：`{ ids: string[] }`
+- **隐藏/显示公告**：`PATCH /announcements/:id/toggle-hidden`
+  - 请求体：`{ isHidden: boolean }`
+- **获取公告列表（公开）**：`GET /announcements?page=1&limit=20`
+- **管理员查看全部公告**：`GET /announcements/admin/all?page=1&limit=20`
+
+> 提示：日常前台"公告管理"列表和详情页，分别调用 `/announcements/admin/all`、`/announcements/:id`。
 
 ---
 
