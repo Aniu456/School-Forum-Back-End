@@ -1,5 +1,137 @@
 # 普通用户端 API 文档
 
+## 基础说明
+
+- **基础 URL（开发环境）**：`http://localhost:30000`
+- **认证方式**：除标记为“公开接口”的路由外，请在请求头中携带：
+
+  `Authorization: Bearer <accessToken>`
+
+- **角色说明**：`USER` 为普通用户，`ADMIN` 为管理员
+- **统一成功响应结构**（由全局拦截器包装）：
+
+  ```json
+  {
+    "success": true,
+    "data": { ... },
+    "timestamp": "2025-01-01T00:00:00.000Z"
+  }
+  ```
+
+- **统一错误响应结构**（由全局异常过滤器返回）：
+
+  ```json
+  {
+    "success": false,
+    "statusCode": 400,
+    "message": "错误信息",
+    "path": "/请求路径",
+    "method": "GET",
+    "timestamp": "2025-01-01T00:00:00.000Z"
+  }
+  ```
+
+下文如果未特别标注"公开接口"，默认均需要携带 JWT 访问。
+
+## 文件上传 `/upload`
+
+文件上传功能支持本地存储，上传成功后会返回可访问的文件 URL。
+
+### 上传头像
+**POST** `/upload/avatar`
+
+- 需要认证
+- Content-Type: `multipart/form-data`
+- 文件大小限制：2MB
+- 支持格式：JPEG, PNG, GIF, WebP
+
+```typescript
+// 请求（Form Data）
+{
+  file: File;  // 表单字段名必须是 "file"
+}
+
+// 响应
+{
+  filename: string;  // 服务器上的文件名（UUID + 扩展名）
+  url: string;       // 完整访问URL，如 http://localhost:30000/uploads/avatars/xxx.jpg
+}
+```
+
+### 上传单张图片
+**POST** `/upload/image`
+
+- 需要认证
+- Content-Type: `multipart/form-data`
+- 文件大小限制：5MB
+- 支持格式：JPEG, PNG, GIF, WebP
+
+```typescript
+// 请求（Form Data）
+{
+  file: File;  // 表单字段名必须是 "file"
+}
+
+// 响应
+{
+  filename: string;
+  url: string;
+}
+```
+
+### 上传多张图片
+**POST** `/upload/images`
+
+- 需要认证
+- Content-Type: `multipart/form-data`
+- 最多上传：9张
+- 单个文件大小限制：5MB
+- 支持格式：JPEG, PNG, GIF, WebP
+
+```typescript
+// 请求（Form Data）
+{
+  files: File[];  // 表单字段名必须是 "files"
+}
+
+// 响应
+{
+  filenames: string[];  // 文件名数组
+  urls: string[];       // URL数组
+}
+```
+
+### 上传文档
+**POST** `/upload/document`
+
+- 需要认证
+- Content-Type: `multipart/form-data`
+- 文件大小限制：20MB
+- 支持格式：PDF, Word (doc/docx), Excel (xls/xlsx), PowerPoint (ppt/pptx), TXT, ZIP, RAR
+
+```typescript
+// 请求（Form Data）
+{
+  file: File;  // 表单字段名必须是 "file"
+}
+
+// 响应
+{
+  filename: string;      // 服务器上的文件名
+  originalName: string;  // 原始文件名
+  url: string;           // 完整访问URL
+}
+```
+
+**使用说明**：
+1. 上传成功后，返回的 `url` 字段可以直接用于更新用户资料、发布帖子等操作
+2. 例如上传头像后，调用 `PATCH /users/me` 并传入 `{ avatar: "返回的url" }`
+3. 发布帖子图片时，先批量上传图片获取 URLs，再调用 `POST /posts` 并传入 `{ images: ["url1", "url2", ...] }`
+4. 上传的文件会自动重命名为 UUID，避免文件名冲突
+5. 文件存储在服务器的 `uploads/` 目录下，按类型分为 `avatars/`、`images/`、`documents/` 三个子目录
+
+---
+
 ## 认证相关 `/auth`
 
 ### 注册
@@ -24,7 +156,9 @@
     avatar: string;       // 头像URL
     role: "USER";         // 角色
     createdAt: Date;      // 注册时间
-  }
+  };
+  accessToken: string;    // 访问令牌，前端在 Authorization 头中携带
+  refreshToken: string;   // 刷新令牌，用于调用刷新接口
 }
 ```
 
@@ -40,7 +174,8 @@
 
 // 响应
 {
-  access_token: string;   // JWT令牌
+  accessToken: string;    // 访问令牌，前端在 Authorization 头中携带
+  refreshToken: string;   // 刷新令牌，用于 /auth/refresh
   user: {
     id: string;
     username: string;
@@ -48,7 +183,23 @@
     nickname: string;
     avatar: string;
     role: string;
-  }
+  };
+}
+```
+
+### 刷新令牌
+**POST** `/auth/refresh`
+
+```typescript
+// 请求体
+{
+  refreshToken: string;   // 刷新令牌
+}
+
+// 响应
+{
+  accessToken: string;    // 新的访问令牌
+  refreshToken: string;   // 新的刷新令牌
 }
 ```
 
@@ -56,6 +207,85 @@
 **POST** `/auth/logout`
 
 需要认证。
+
+### 忘记密码（发送验证码）
+**POST** `/auth/forgot-password`
+
+```typescript
+// 请求体
+{
+  email: string;          // 注册邮箱
+}
+
+// 响应
+{
+  message: string;
+  // 开发环境会返回 code 便于调试
+  code?: string;
+}
+```
+
+### 重置密码
+**POST** `/auth/reset-password`
+
+```typescript
+// 请求体
+{
+  email: string;
+  code: string;           // 验证码
+  newPassword: string;
+}
+
+// 响应
+{
+  message: string;
+}
+```
+
+### 管理员注册（需管理员密钥）
+**POST** `/auth/register-admin`
+
+```typescript
+// 请求体
+{
+  email: string;
+  username: string;
+  password: string;
+  adminKey: string;       // ADMIN_REGISTRATION_KEY
+  nickname?: string;
+}
+
+// 响应同普通注册，role 固定为 ADMIN
+}
+
+#### 接口认证要求一览
+
+- 公开接口（无需携带 Authorization 头）：
+  - `POST /auth/register`
+  - `POST /auth/login`
+  - `POST /auth/refresh`
+  - `POST /auth/forgot-password`
+  - `POST /auth/reset-password`
+  - `POST /auth/register-admin`（仅用于初始化管理员，正式环境不要暴露在前台 UI 中）
+- 需要认证（必须携带 `Authorization: Bearer <accessToken>`）：
+  - `POST /auth/logout`
+
+#### 推荐使用流程（给前端/实习生）
+
+1. **首次登录 / 注册**：
+   - 调用 `POST /auth/register` 或 `POST /auth/login`；
+   - 将返回的 `accessToken` 保存在内存/状态管理或安全存储中，将 `refreshToken` 保存在 HttpOnly Cookie 或安全存储中。
+2. **后续请求业务接口**：
+   - 在除文档标注为“公开接口”的所有请求中，统一带上：
+     - `Authorization: Bearer <accessToken>`。
+3. **AccessToken 过期时**：
+   - 捕获 401/403 错误后，调用 `POST /auth/refresh`，传入 `refreshToken`；
+   - 用新的 `accessToken` 覆盖旧值（必要时同时更新 `refreshToken`）。
+4. **忘记密码**：
+   - 调用 `POST /auth/forgot-password` 获取验证码（开发环境可在响应中看到 `code`）；
+   - 再调用 `POST /auth/reset-password` 完成重置。
+5. **退出登录**：
+   - 调用 `POST /auth/logout`（前端同时清理本地保存的 token / 用户信息）。
 
 ---
 
@@ -193,10 +423,11 @@
 ```
 
 ### 获取帖子列表
-**GET** `/posts?page=1&limit=20&sort=latest&tag=前端`
+**GET** `/posts?page=1&limit=20&sortBy=createdAt&order=desc&tag=前端`
 
 ```typescript
-// sort: latest | hot | trending
+// sortBy: createdAt | viewCount
+// order: asc | desc
 // tag: 标签筛选
 
 // 响应
@@ -262,9 +493,10 @@
 ```
 
 ### 获取帖子评论
-**GET** `/comments/post/:postId?page=1&limit=20`
+**GET** `/posts/:id/comments?page=1&limit=20&sortBy=createdAt`
 
-公开接口。
+- `sortBy`: `createdAt | likeCount`，默认 `createdAt`
+- 公开接口。
 
 ### 获取评论回复
 **GET** `/comments/:id/replies?page=1&limit=10`
@@ -292,8 +524,11 @@
 
 // 响应
 {
-  message: string;        // "点赞成功" 或 "取消点赞"
-  isLiked: boolean;       // 当前点赞状态
+  message: string;        // "点赞成功" 或 "取消点赞成功"
+  data: {
+    isLiked: boolean;     // 当前点赞状态
+    likeCount: number;    // 最新点赞数
+  };
 }
 ```
 
@@ -329,15 +564,34 @@
 // 请求体
 {
   postId: string;         // 帖子ID
-  folderId?: string;      // 收藏夹ID（可选，默认收藏夹）
+  folderId?: string;      // 收藏夹ID（可选，前端通常传当前选中的收藏夹）
 }
 ```
 
 ### 获取我的收藏夹
 **GET** `/favorites/folders`
 
-### 获取收藏夹内容
-**GET** `/favorites/folders/:id?page=1&limit=20`
+### 获取收藏夹详情
+**GET** `/favorites/folders/:id`
+
+### 获取收藏夹中的帖子
+**GET** `/favorites/folders/:folderId/posts?page=1&limit=20`
+
+### 更新收藏夹
+**PATCH** `/favorites/folders/:id`
+
+```typescript
+// 请求体
+{
+  name?: string;           // 收藏夹名称
+  description?: string;    // 描述
+}
+```
+
+### 删除收藏夹
+**DELETE** `/favorites/folders/:id`
+
+> 删除收藏夹会同时删除该收藏夹中的收藏记录（不影响帖子本身）。
 
 ### 取消收藏
 **DELETE** `/favorites/:id`
@@ -358,7 +612,7 @@
 ```
 
 ### 取消关注
-**POST** `/users/:id/unfollow`
+**DELETE** `/users/:id/follow`
 
 ### 获取关注列表
 **GET** `/users/:id/following?page=1&limit=20`
@@ -406,7 +660,7 @@
 ## 搜索 `/search`
 
 ### 搜索帖子
-**GET** `/search?q=关键词&page=1&limit=20`
+**GET** `/search/posts?q=关键词&page=1&limit=20&sortBy=relevance&tag=前端`
 
 公开接口。
 
@@ -415,27 +669,49 @@
 
 公开接口。
 
+### 获取热门搜索标签
+**GET** `/search/tags/popular?limit=10`
+
+公开接口。返回当前热门的搜索标签，用于搜索建议。
+
 ---
 
 ## 推荐相关 `/recommendations`
 
-### 获取推荐帖子
-**GET** `/recommendations/posts?limit=20`
+### 获取推荐帖子（个性化）
+**GET** `/recommendations/personalized?page=1&limit=20`
 
-公开接口。基于用户兴趣的个性化推荐。
+需要登录，根据当前用户的关注关系等生成个性化推荐。
 
 ### 获取热门帖子
-**GET** `/recommendations/hot?limit=20`
+**GET** `/recommendations/posts/hot?page=1&limit=20`
 
 公开接口。
 
 ### 获取趋势帖子
-**GET** `/recommendations/trending?limit=20`
+**GET** `/recommendations/posts/trending?page=1&limit=20`
 
 公开接口。
 
 ### 获取最新帖子
-**GET** `/recommendations/latest?limit=20`
+**GET** `/recommendations/posts/latest?page=1&limit=20`
+
+公开接口。
+
+### 获取关注用户动态
+**GET** `/recommendations/following?page=1&limit=20`
+
+需要登录，返回关注用户最新发布的帖子。
+
+> 别名：`GET /recommendations/following-feed`，行为与 `/recommendations/following` 相同。
+
+### 获取热门话题
+**GET** `/recommendations/topics/hot?limit=20`
+
+公开接口。
+
+### 获取所有话题
+**GET** `/recommendations/topics?page=1&limit=20`
 
 公开接口。
 
@@ -465,6 +741,21 @@
 
 ### 获取趋势标签
 **GET** `/algorithms/trending-tags?limit=30`
+
+公开接口。
+
+### 搜索标签
+**GET** `/algorithms/search-tags?q=关键词&limit=20`
+
+- `limit`：可选，默认 `10`。
+
+公开接口。
+
+### 获取相关标签
+**GET** `/algorithms/related-tags?tags=前端,React&limit=10`
+
+- `tags`：以逗号分隔的标签列表，例如 `tags=前端,React`；
+- `limit`：可选，默认 `5`。
 
 公开接口。
 
@@ -512,7 +803,7 @@
 ### 获取积分排行榜
 **GET** `/points/leaderboard?limit=50`
 
-公开接口。
+需要登录（用于在应用内展示积分排行榜）。
 
 ---
 
@@ -536,6 +827,42 @@
 - **二手交易、学习资源** 保留独立模块，因为它们有特殊的状态管理（上架/下架/已售等）。
 
 下面的"市场模块"章节对二手交易和学习资源的接口做了详细说明。
+
+## 服务中心专用接口 `/service-center`
+
+> 如果希望直接使用专用路径（而不是自己拼 `tag`），可调用以下接口，它们底层会自动带上对应标签。
+
+### 获取服务中心分类
+**GET** `/service-center/categories`
+
+返回所有分类及其标签/描述，数据来源于服务端常量：
+
+```typescript
+[
+  { key: "CLUB_RECRUITMENT", label: "社团招新", tag: "社团招新", description: "校园社团招募新成员" },
+  { key: "LOST_AND_FOUND",  label: "失物招领", tag: "失物招领", description: "失物寻找和拾物招领" },
+  { key: "CARPOOL",         label: "拼车拼单", tag: "拼车拼单", description: "拼车出行和团购拼单" },
+  { key: "SECONDHAND",      label: "二手交易", tag: "二手交易", description: "二手物品买卖交换" },
+  { key: "STUDY_RESOURCE",  label: "学习资源", tag: "学习资源", description: "学习资料和资源分享" },
+]
+```
+
+### 获取社团招新列表
+**GET** `/service-center/club-recruitment?page=1&limit=20`
+
+### 获取失物招领列表
+**GET** `/service-center/lost-and-found?page=1&limit=20`
+
+### 获取拼车拼单列表
+**GET** `/service-center/carpool?page=1&limit=20`
+
+### 获取二手交易列表（帖子形式）
+**GET** `/service-center/secondhand?page=1&limit=20`
+
+### 获取学习资源列表（帖子形式）
+**GET** `/service-center/study-resource?page=1&limit=20`
+
+> 返回结构与 `GET /posts` 相同。
 
 ## 市场模块
 
@@ -589,10 +916,13 @@
 #### 更新商品
 **PATCH** `/secondhand/:id`
 
-只能更新自己的商品。
+仅作者可操作；请求体同创建接口（字段可选）。
+返回更新后的商品对象。
 
 #### 删除商品
 **DELETE** `/secondhand/:id`
+
+仅作者可操作，删除后商品被标记下架/已售。
 
 ---
 
@@ -623,6 +953,16 @@
 
 #### 下载资源（增加下载量）
 **POST** `/study-resources/:id/download`
+
+#### 更新资源
+**PATCH** `/study-resources/:id`
+
+仅作者可操作；请求体同创建接口（字段可选），返回更新后的资源。
+
+#### 删除资源
+**DELETE** `/study-resources/:id`
+
+仅作者可操作，物理删除。
 
 ---
 
@@ -706,32 +1046,212 @@
 
 ---
 
-## 公告 `/announcements`
+## 动态流 `/activities`
 
-### 获取公告列表
-**GET** `/announcements?page=1&limit=20&type=INFO`
+动态流用于聚合用户及其关注对象的最新活动（新帖、新评论、公告等）。
 
-公开接口。
+### 获取关注用户的动态流
+**GET** `/activities/following?page=1&limit=20`
+
+需要登录，基于当前用户关注的人聚合活动。
 
 ```typescript
-// type: INFO | WARNING | URGENT
+// 响应
+{
+  data: [
+    {
+      type: "POST" | "COMMENT" | "ANNOUNCEMENT"; // 活动类型
+      id: string;           // 目标ID（帖子/评论/公告）
+      author?: {
+        id: string;
+        username: string;
+        nickname: string;
+        avatar: string;
+      };                    // 触发该活动的用户（帖子作者/评论作者/公告作者）
+      content: string;      // 简要内容（帖子标题、评论内容、公告标题）
+      postTitle?: string;   // 针对评论活动，附带所属帖子的标题
+      createdAt: Date;      // 活动时间
+      data: any;            // 原始对象（Post / Comment / Announcement）
+    }
+  ];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;          // 实际返回条数
+  };
+}
+```
 
+### 获取我的动态
+**GET** `/activities/my?page=1&limit=20`
+
+基于当前用户自己发布的帖子和评论生成时间线，常用于“我的动态”页。
+
+```typescript
+// 响应结构类似，但只有 POST / COMMENT 两种类型
+{
+  data: [
+    {
+      type: "POST" | "COMMENT";
+      id: string;
+      content: string;      // 帖子标题或评论内容
+      postTitle?: string;   // 针对评论活动
+      createdAt: Date;
+      data: any;            // 原始 Post / Comment 对象
+    }
+  ];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+```
+
+---
+
+## 私信会话 `/conversations`
+
+用于实现用户之间的一对一私信聊天。
+
+### 创建或获取会话
+**POST** `/conversations`
+
+```typescript
+// 请求体
+{
+  participantId: string;    // 想要聊天的对方用户ID
+}
+
+// 响应（会话对象）
+{
+  id: string;               // 会话ID
+  type: "DIRECT";
+  otherUser: {              // 对方用户信息
+    id: string;
+    username: string;
+    nickname: string;
+    avatar: string;
+  } | null;
+  lastMessage: {
+    id: string;
+    content: string;
+    senderId: string;
+    createdAt: Date;
+  } | null;                 // 最近一条消息
+  lastReadAt?: Date | null; // 当前用户在该会话的最后已读时间
+  createdAt: Date;
+}
+```
+
+> 接口具有幂等性：如果已存在与该用户的会话，会直接返回已有会话，而不是重复创建。
+
+### 获取会话列表
+**GET** `/conversations?page=1&limit=20`
+
+```typescript
+// 响应
+{
+  data: Conversation[];     // 会话列表，结构同上
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+```
+
+### 获取未读私信数量
+**GET** `/conversations/unread-count`
+
+```typescript
+// 响应
+{
+  count: number;            // 所有会话中未读消息总数
+}
+```
+
+### 获取会话详情
+**GET** `/conversations/:id`
+
+返回单个会话的基础信息（不含完整消息列表），结构同创建/获取会话接口。
+
+### 获取会话消息列表
+**GET** `/conversations/:id/messages?page=1&limit=50`
+
+```typescript
 // 响应
 {
   data: [
     {
       id: string;
-      title: string;      // 标题
-      content: string;    // 内容
-      type: "INFO" | "WARNING" | "URGENT"; // 类型
-      targetRole: "ALL" | "USER" | "ADMIN"; // 目标角色
-      publisherId: string;
-      isPinned: boolean;  // 是否置顶
+      conversationId: string;
+      senderId: string;
+      content: string;
+      isRead: boolean;
+      readAt?: Date | null;
       createdAt: Date;
-      publisher: { id, username, nickname, avatar }
+      sender: {
+        id: string;
+        username: string;
+        nickname: string;
+        avatar: string;
+      };
     }
-  ],
-  meta: { page, limit, total }
+  ];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+```
+
+> 注意：接口返回的消息列表会自动将“对方发给我且未读”的消息标记为已读，并更新会话的 `lastReadAt`。
+
+### 发送消息
+**POST** `/conversations/:id/messages`
+
+```typescript
+// 请求体
+{
+  content: string;          // 消息内容
+}
+
+// 响应：刚发送的消息对象（结构同上）
+```
+
+发送成功后，会：
+
+- 更新会话的 `updatedAt`，用于会话列表排序；
+- 通过通知系统给对方发送一条系统通知（type = SYSTEM）。
+
+### 删除消息
+**DELETE** `/conversations/messages/:messageId`
+
+只能删除自己发送的消息，且为**软删除**（数据库中保留记录，仅前端不再展示）。
+
+---
+
+## 公告 `/announcements`
+
+### 获取公告列表
+**GET** `/announcements?page=1&limit=20`
+
+- 公开接口。
+- 登录用户会根据自己的角色，额外看到只对某角色可见的公告。
+
+```typescript
+// 响应（data 内每条记录）
+{
+  id: string;
+  title: string;      // 标题
+  content: string;    // 内容
+  type: "INFO" | "WARNING" | "URGENT"; // 类型
+  targetRole: "USER" | "ADMIN" | null; // 目标角色，null 表示所有人
+  isPinned: boolean;  // 是否置顶
+  createdAt: Date;
+  author: { id, username, nickname, avatar }
 }
 ```
 
@@ -745,10 +1265,13 @@
 ## 通知 `/notifications`
 
 ### 获取我的通知
-**GET** `/notifications?page=1&limit=20&type=COMMENT`
+**GET** `/notifications?page=1&limit=20&type=COMMENT&isRead=false`
+
+- 支持 `type` 和 `isRead` 过滤。
 
 ```typescript
 // type: COMMENT | REPLY | LIKE | SYSTEM | NEW_POST | NEW_FOLLOWER
+// isRead: 可选，true/false 用于筛选已读/未读
 
 // 响应
 {
@@ -769,7 +1292,7 @@
 ```
 
 ### 获取未读数量
-**GET** `/notifications/unread-count`
+**GET** `/notifications/unread/count`
 
 ```typescript
 // 响应
@@ -782,18 +1305,59 @@
 **PATCH** `/notifications/:id/read`
 
 ### 全部标记已读
-**PATCH** `/notifications/mark-all-read`
+**POST** `/notifications/read-all`
 
 ### 删除通知
 **DELETE** `/notifications/:id`
 
 ---
 
+## 系统监控 `/health`
+
+用于负载均衡健康检查和监控系统状态。
+
+### 健康检查
+**GET** `/health`
+
+公开接口。
+
+```typescript
+// 响应（正常情况）
+{
+  status: "ok";
+  timestamp: string;      // ISO 时间字符串
+  services: {
+    database: "healthy";              // 数据库连接状态
+    redis: "healthy" | "unhealthy";  // Redis 连接状态
+  };
+}
+
+// 发生错误时
+{
+  status: "error";
+  timestamp: string;
+  error: string;          // 错误信息
+}
+```
+
+---
+
 ## WebSocket 实时通知
 
-连接地址：`ws://localhost:3000`
+WebSocket 网关用于推送通知、新帖子等实时事件。
 
-需要在连接时传递JWT token。
+- 连接地址（开发环境示例）：`ws://localhost:3000`（Socket.IO 默认路径）
+- 连接时需要通过 `auth.token` 传递 JWT：
+
+  ```typescript
+  import { io } from 'socket.io-client';
+
+  const socket = io('http://localhost:3000', {
+    auth: {
+      token: accessToken, // 即 /auth/login 返回的 accessToken
+    },
+  });
+  ```
 
 ### 监听事件
 
@@ -803,23 +1367,55 @@ socket.on('notification:new', (data) => {
   // data: 通知对象
 });
 
-// 新帖子（关注的人发帖）
-socket.on('post:new', (data) => {
-  // data: 帖子对象
+// 未读数查询结果
+socket.on('notification:unread_count', (data) => {
+  // data: { unreadCount: number }
 });
 
-// 新粉丝
-socket.on('follower:new', (data) => {
-  // data: 用户对象
+// 未读数变更广播
+socket.on('notification:unread_count_updated', (data) => {
+  // data: { unreadCount: number }
 });
 
-// 未读数更新
-socket.on('notification:unread-count', (data) => {
-  // data: { count: number }
+// 单条通知标记已读成功
+socket.on('notification:read_success', (data) => {
+  // data: { notificationId: string; isRead: boolean }
+});
+
+// 全部标记已读成功
+socket.on('notification:all_read_success', (data) => {
+  // data: { message: string; count: number }
+});
+
+// 在线人数统计
+socket.on('system:online_count', (data) => {
+  // data: { onlineUsers: number, timestamp: string }
 });
 ```
 
 ### 发送心跳
+
 ```typescript
-socket.emit('heartbeat');
+// 定期发送 ping，服务端会回复 'pong'
+socket.emit('ping');
+
+socket.on('pong', (data) => {
+  // data: { timestamp: number }
+});
+```
+
+### 常用发送事件
+
+```typescript
+// 查询未读数
+socket.emit('notification:unread_count');
+
+// 标记单条通知为已读
+socket.emit('notification:mark_read', { notificationId });
+
+// 标记全部通知为已读
+socket.emit('notification:mark_all_read');
+
+// 心跳
+socket.emit('ping');
 ```

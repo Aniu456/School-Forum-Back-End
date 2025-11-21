@@ -1,6 +1,27 @@
 # 后台管理系统 API 文档
 
-**仅限 ADMIN 角色访问** `/admin`
+## 基础说明
+
+- **基础 URL（开发环境）**：`http://localhost:30000`
+- **管理接口前缀**：主要为 `/admin`；公告模块使用 `/announcements` 前缀，但同样只允许管理员访问写操作。
+- **认证方式**：所有后台接口都需要管理员 JWT，在请求头中携带：
+
+  `Authorization: Bearer <accessToken>`
+
+- **角色要求**：仅 `role = ADMIN` 的用户可以访问本页所有接口。
+- **响应/错误结构**：与《普通用户端 API 文档》一致，外层均包含：
+
+  ```json
+  {
+    "success": true,
+    "data": { ... },
+    "timestamp": "2025-01-01T00:00:00.000Z"
+  }
+  ```
+
+  错误时 `success = false`，并返回 `statusCode`、`message` 等字段。
+
+> 下文为简化示例，仅描述 `data` 部分结构。
 
 ## 用户管理 `/admin/users`
 
@@ -50,6 +71,11 @@
 ### 解封用户
 **POST** `/admin/users/:id/unban`
 
+### 删除用户（物理删除）
+**DELETE** `/admin/users/:id`
+
+> 谨慎操作，删除后不可恢复。
+
 ### 重置用户密码
 **POST** `/admin/users/:id/reset-password`
 
@@ -83,8 +109,15 @@
 
 ## 帖子管理 `/admin/posts`
 
+### 获取帖子详情
+**GET** `/admin/posts/:id`
+
 ### 获取帖子列表
-**GET** `/admin/posts?page=1&limit=20&isPinned=false&isHighlighted=false`
+**GET** `/admin/posts?page=1&limit=20&isPinned=false&isHighlighted=false&keyword=xxx&authorId=uid&tag=标签`
+
+- `keyword`：标题/内容模糊搜索
+- `authorId`：按作者筛选
+- `tag`：按标签筛选
 
 ```typescript
 // 响应（简化）
@@ -134,8 +167,18 @@
 
 ## 评论管理 `/admin/comments`
 
+### 获取评论详情
+**GET** `/admin/comments/:id`
+
 ### 获取评论列表
-**GET** `/admin/comments?page=1&limit=20`
+**GET** `/admin/comments?page=1&limit=20&keyword=xxx&authorId=uid&postId=pid`
+
+- `keyword`：内容包含
+- `authorId`：按作者筛选
+- `postId`：按帖子筛选
+
+### 删除单条评论
+**DELETE** `/admin/comments/:id`
 
 ### 批量删除评论
 **POST** `/admin/comments/bulk-delete`
@@ -156,7 +199,7 @@
 后台提供了一个简单的统计接口用于仪表盘概览：
 
 ### 获取系统统计
-**GET** `/admin/statistics`
+**GET** `/admin/statistics`（别名：`/admin/statistics/overview`）
 
 ```typescript
 // 响应
@@ -198,8 +241,28 @@
 
 **物理删除**，删除后数据不可恢复。
 
+### 隐藏/显示公告
+**PATCH** `/announcements/:id/toggle-hidden`
+
+```typescript
+// 请求体
+{
+  isHidden: boolean;      // true: 隐藏公告；false: 取消隐藏
+}
+```
+
 ### 获取全部公告（管理员视图）
 **GET** `/announcements/admin/all?page=1&limit=20`
+
+### 批量删除公告
+**POST** `/announcements/admin/bulk-delete`
+
+```typescript
+// 请求体
+{
+  ids: string[];          // 要删除的公告 ID 列表
+}
+```
 
 ---
 

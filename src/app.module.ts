@@ -22,6 +22,7 @@ import { RecommendationsModule } from './features/recommendations/recommendation
 import { RedisModule } from './core/redis/redis.module';
 import { SearchModule } from './features/search/search.module';
 import { SocialModule } from './features/social/social.module';
+import { UploadModule } from './features/upload/upload.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -54,6 +55,7 @@ import { UsersModule } from './users/users.module';
     SocialModule,
     ConversationsModule,
     ActivitiesModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [

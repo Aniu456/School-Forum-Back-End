@@ -1,6 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { VersioningType } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
 import { RedisStore } from 'connect-redis';
@@ -15,7 +17,16 @@ import { AllExceptionsFilter } from './core/common/filters';
 import { TransformInterceptor } from './core/common/interceptors';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // ============================================
+  // 📁 静态文件服务配置
+  // ============================================
+
+  // 配置上传文件的静态访问路径
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+    prefix: '/uploads/',
+  });
 
   // ============================================
   // 🛡️ 全局配置

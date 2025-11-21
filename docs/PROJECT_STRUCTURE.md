@@ -13,6 +13,7 @@ school-forum-back-end/
 │   │   ├── announcements/      # 公告系统
 │   │   ├── comments/           # 评论管理
 │   │   └── posts/              # 帖子管理（含草稿）
+│   ├── common/                 # 通用常量（如服务中心标签）
 │   ├── core/                   # 基础设施层
 │   │   ├── common/             # 公共模块
 │   │   │   ├── decorators/     # 装饰器
@@ -22,14 +23,12 @@ school-forum-back-end/
 │   │   │   └── middleware/     # 中间件
 │   │   ├── config/             # 配置文件
 │   │   ├── prisma/             # Prisma ORM
-│   │   └── redis/              # Redis 缓存
+│   │   └── redis/              # Redis
 │   ├── features/               # 业务功能层
-│   │   ├── marketplace/        # 市场模块
+│   │   ├── activities/         # 动态流
+│   │   ├── marketplace/        # 市场模块（当前仅保留二手和学习资源，其它场景通过 posts + tags 实现）
 │   │   │   ├── secondhand      # 二手交易
-│   │   │   ├── study-resources # 学习资源
-│   │   │   ├── clubs           # 社团招新
-│   │   │   ├── lost-found      # 失物招领
-│   │   │   └── carpool         # 拼车拼单
+│   │   │   └── study-resources # 学习资源
 │   │   ├── recommendations/    # 推荐系统
 │   │   │   ├── hot-post        # 热门算法
 │   │   │   └── tag-algorithm   # 标签算法
@@ -67,6 +66,8 @@ school-forum-back-end/
 - **prisma**: 数据库 ORM 服务
 - **redis**: Redis 缓存服务
 
+> 补充：`src/common/` 下仅存放公共常量（如服务中心标签），与 `src/core/common/` 的基础设施模块区分。
+
 ### 2. 内容管理层 (content/)
 - **posts**: 帖子的增删改查、草稿管理
 - **comments**: 评论的增删改查、回复功能
@@ -92,26 +93,30 @@ school-forum-back-end/
 - **Comment**: 评论表
 - **Like**: 点赞表
 - **Notification**: 通知表
+ - **Announcement**: 公告表
 
 ### 社交表
 - **Follow**: 关注关系表
 - **Favorite**: 收藏表
 - **Folder**: 收藏夹表
+ - **Topic**: 话题表
 
 ### 扩展表
 - **PostDraft**: 帖子草稿表
 - **PostScore**: 帖子评分表（热度算法）
 - **UserPoints**: 用户积分表
 - **UserPointsHistory**: 积分历史表
-- **Report**: 举报表
-- **Announcement**: 公告表
+ - **UserLoginHistory**: 用户登录历史表
+ - **VerificationCode**: 验证码表
 
 ### 市场表
 - **SecondhandItem**: 二手物品表
 - **StudyResource**: 学习资源表
-- **ClubRecruitment**: 社团招新表
-- **LostAndFound**: 失物招领表
-- **Carpool**: 拼车拼单表
+
+### 实时通信表
+- **Conversation**: 私信会话表
+- **ConversationParticipant**: 会话参与者表
+- **Message**: 私信消息表
 
 ## 技术栈
 
@@ -139,10 +144,10 @@ school-forum-back-end/
 - `/points/*`: 积分相关
 - `/secondhand/*`: 二手交易
 - `/study-resources/*`: 学习资源
-- `/clubs/*`: 社团招新
-- `/lost-found/*`: 失物招领
-- `/carpool/*`: 拼车拼单
 - `/announcements/*`: 公告
+- `/service-center/*`: 校园服务中心聚合接口（基于帖子标签分类）
+- `/conversations/*`: 私信会话与消息
+- `/activities/*`: 动态流
 - `/admin/*`: 后台管理
 
 ## 权限系统

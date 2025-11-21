@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
@@ -263,6 +263,20 @@ export class AnnouncementsService {
                 limit,
                 total,
             },
+        };
+    }
+
+    async bulkDelete(ids: string[]) {
+        if (!ids || ids.length === 0) {
+            return { message: '没有要删除的公告' };
+        }
+
+        const result = await this.prisma.announcement.deleteMany({
+            where: { id: { in: ids } },
+        });
+
+        return {
+            message: `已删除 ${result.count} 条公告`,
         };
     }
 }

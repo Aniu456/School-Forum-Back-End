@@ -20,6 +20,7 @@ import { CurrentUser } from '../../core/common/decorators/current-user.decorator
 import { Roles } from '../../core/common/decorators/roles.decorator';
 import { Public } from '../../core/common/decorators/public.decorator';
 import { Role } from '@prisma/client';
+import { BulkDeleteDto } from '../../admin/dto/bulk-delete.dto';
 
 @Controller('announcements')
 export class AnnouncementsController {
@@ -111,5 +112,12 @@ export class AnnouncementsController {
         @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
     ) {
         return this.announcementsService.findAllForAdmin(page, limit);
+    }
+
+    @Roles(Role.ADMIN)
+    @Post('admin/bulk-delete')
+    @HttpCode(HttpStatus.OK)
+    async bulkDelete(@Body() dto: BulkDeleteDto) {
+        return this.announcementsService.bulkDelete(dto.ids);
     }
 }
