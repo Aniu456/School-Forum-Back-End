@@ -1,17 +1,23 @@
 import {
-  WebSocketGateway,
-  WebSocketServer,
-  SubscribeMessage,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  forwardRef,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import {
   ConnectedSocket,
   MessageBody,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
   OnGatewayInit,
+  SubscribeMessage,
+  WebSocketGateway,
+  WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
-import { JwtService } from '@nestjs/jwt';
 
 @WebSocketGateway({
   cors: {
@@ -37,6 +43,7 @@ export class NotificationsGateway
   private userSockets: Map<string, Set<string>> = new Map();
 
   constructor(
+    @Inject(forwardRef(() => NotificationsService))
     private readonly notificationsService: NotificationsService,
     private readonly jwtService: JwtService,
   ) {}

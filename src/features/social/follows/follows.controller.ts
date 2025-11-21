@@ -1,23 +1,23 @@
 import {
   Controller,
-  Post,
+  DefaultValuePipe,
   Delete,
   Get,
-  Param,
-  Body,
-  Query,
-  ParseIntPipe,
-  DefaultValuePipe,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseIntPipe,
+  ParseUUIDPipe,
+  Post,
+  Query,
 } from '@nestjs/common';
-import { FollowsService } from './follows.service';
-import { CreateFollowDto } from './dto/create-follow.dto';
 import { CurrentUser } from '../../../core/common/decorators/current-user.decorator';
+import { CreateFollowDto } from './dto/create-follow.dto';
+import { FollowsService } from './follows.service';
 
 @Controller('users')
 export class FollowsController {
-  constructor(private readonly followsService: FollowsService) { }
+  constructor(private readonly followsService: FollowsService) {}
 
   /**
    * 关注用户
@@ -26,12 +26,10 @@ export class FollowsController {
   @Post(':id/follow')
   @HttpCode(HttpStatus.OK)
   async follow(
-    @Param('id') followingId: string,
+    @Param('id', ParseUUIDPipe) followingId: string,
     @CurrentUser('id') userId: string,
-    @Body() createFollowDto: CreateFollowDto,
   ) {
-    // 覆盖 DTO 中的 followingId
-    createFollowDto.followingId = followingId;
+    const createFollowDto: CreateFollowDto = { followingId };
     return this.followsService.follow(userId, createFollowDto);
   }
 
@@ -42,10 +40,26 @@ export class FollowsController {
   @Delete(':id/follow')
   @HttpCode(HttpStatus.OK)
   async unfollow(
-    @Param('id') followingId: string,
+    @Param('id', ParseUUIDPipe) followingId: string,
     @CurrentUser('id') userId: string,
   ) {
     return this.followsService.unfollow(userId, followingId);
+  }
+
+  /**
+   * 获取是否已关注状态
+   * GET /users/:id/follow/status
+   */
+  @Get(':id/follow/status')
+  async getFollowStatus(
+    @Param('id', ParseUUIDPipe) targetUserId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    const isFollowing = await this.followsService.isFollowing(
+      userId,
+      targetUserId,
+    );
+    return { isFollowing };
   }
 
   /**
@@ -54,7 +68,7 @@ export class FollowsController {
    */
   @Get(':id/following')
   async getFollowing(
-    @Param('id') userId: string,
+    @Param('id', ParseUUIDPipe) userId: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
@@ -67,7 +81,7 @@ export class FollowsController {
    */
   @Get(':id/followers')
   async getFollowers(
-    @Param('id') userId: string,
+    @Param('id', ParseUUIDPipe) userId: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {

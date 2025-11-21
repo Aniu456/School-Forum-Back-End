@@ -36,6 +36,25 @@ export class UsersController {
   }
 
   /**
+   * 获取当前用户的活动（别名）
+   * GET /users/me/activities
+   */
+  @Get('me/activities')
+  async getMyActivity(
+    @CurrentUser('id') userId: string,
+    @Query('type') type?: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit?: number,
+  ) {
+    return this.usersActivityService.getUserActivity(
+      userId,
+      type,
+      page,
+      limit,
+    );
+  }
+
+  /**
    * 更新当前用户资料
    * PATCH /users/me
    */

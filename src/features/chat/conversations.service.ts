@@ -454,4 +454,34 @@ export class ConversationsService {
             createdAt: conversation.createdAt,
         };
     }
+
+    /**
+     * 删除会话（仅参与者可删，物理删除会级联消息）
+     */
+    async deleteConversation(conversationId: string, userId: string) {
+        const conversation = await this.prisma.conversation.findUnique({
+            where: { id: conversationId },
+            include: {
+                participants: true,
+            },
+        });
+
+        if (!conversation) {
+            throw new NotFoundException('会话不存在');
+        }
+
+        const isParticipant = conversation.participants.some(
+            (p) => p.userId === userId,
+        );
+
+        if (!isParticipant) {
+            throw new ForbiddenException('无权删除该会话');
+        }
+
+        await this.prisma.conversation.delete({
+            where: { id: conversationId },
+        });
+
+        return { message: '会话已删除' };
+    }
 }

@@ -82,6 +82,18 @@ export class NotificationsController {
   }
 
   /**
+   * 按 relatedId 批量标记为已读（私信通知聚合）
+   */
+  @Patch('related/:relatedId/read')
+  async markByRelated(
+    @Param('relatedId') relatedId: string,
+    @CurrentUser('id') userId: string,
+    @Query('type') type?: NotificationType,
+  ) {
+    return this.notificationsService.markByRelated(userId, relatedId, type);
+  }
+
+  /**
    * 删除通知
    * DELETE /notifications/:id
    */

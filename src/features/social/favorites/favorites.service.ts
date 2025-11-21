@@ -1,6 +1,6 @@
 import {
-  Injectable,
   BadRequestException,
+  Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../core/prisma/prisma.service';
@@ -9,7 +9,7 @@ import { CreateFolderDto, UpdateFolderDto } from './dto/create-folder.dto';
 
 @Injectable()
 export class FavoritesService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   /**
    * 创建收藏夹
@@ -170,18 +170,19 @@ export class FavoritesService {
       throw new BadRequestException('无权访问此收藏夹');
     }
 
-    // 检查是否已经收藏
+    // 检查是否已经在当前收藏夹收藏过此帖子
     const existingFavorite = await this.prisma.favorite.findUnique({
       where: {
-        userId_postId: {
+        userId_postId_folderId: {
           userId,
           postId,
+          folderId,
         },
       },
     });
 
     if (existingFavorite) {
-      throw new BadRequestException('您已经收藏过此帖子');
+      throw new BadRequestException('您已经在此收藏夹收藏过此帖子');
     }
 
     // 创建收藏
@@ -308,15 +309,13 @@ export class FavoritesService {
   }
 
   /**
-   * 检查是否收藏了指定帖子
+   * 检查是否收藏了指定帖子（在任意收藏夹中）
    */
   async isFavorited(userId: string, postId: string): Promise<boolean> {
-    const favorite = await this.prisma.favorite.findUnique({
+    const favorite = await this.prisma.favorite.findFirst({
       where: {
-        userId_postId: {
-          userId,
-          postId,
-        },
+        userId,
+        postId,
       },
     });
 

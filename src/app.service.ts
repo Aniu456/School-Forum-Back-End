@@ -7,7 +7,7 @@ export class AppService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-  ) { }
+  ) {}
 
   /**
    * 系统健康状态检查

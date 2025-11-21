@@ -1,16 +1,16 @@
 import {
-  Injectable,
-  NotFoundException,
   ForbiddenException,
   Inject,
+  Injectable,
+  NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { PrismaService } from '../../core/prisma/prisma.service';
-import { CreatePostDto } from './dto/create-post.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
 import { Role } from '@prisma/client';
+import { PrismaService } from '../../core/prisma/prisma.service';
 import { RealtimeService } from '../../notifications/realtime.service';
 import { PointsService } from '../../users/points.service';
+import { CreatePostDto } from './dto/create-post.dto';
+import { UpdatePostDto } from './dto/update-post.dto';
 
 @Injectable()
 export class PostsService {
@@ -20,7 +20,7 @@ export class PostsService {
     private realtimeService: RealtimeService,
     @Inject(forwardRef(() => PointsService))
     private pointsService: PointsService,
-  ) { }
+  ) {}
 
   /**
    * 创建帖子
@@ -102,6 +102,8 @@ export class PostsService {
           images: true,
           tags: true,
           viewCount: true,
+          isPinned: true,
+          pinnedAt: true,
           createdAt: true,
           updatedAt: true,
           author: {

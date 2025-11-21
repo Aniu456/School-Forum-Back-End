@@ -23,6 +23,10 @@ export class FollowsService {
   async follow(userId: string, createFollowDto: CreateFollowDto) {
     const { followingId } = createFollowDto;
 
+    if (!followingId) {
+      throw new BadRequestException('关注用户ID不能为空');
+    }
+
     // 不能关注自己
     if (userId === followingId) {
       throw new BadRequestException('不能关注自己');

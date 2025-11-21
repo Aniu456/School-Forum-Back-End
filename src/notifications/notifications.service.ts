@@ -1,11 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { NotificationType } from '@prisma/client';
+import { NotificationEmitterService } from './notification-emitter.service';
 
 @Injectable()
 export class NotificationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => NotificationEmitterService))
+    private emitter: NotificationEmitterService,
+  ) {}
 
   /**
    * 创建通知
@@ -14,6 +19,11 @@ export class NotificationsService {
     const notification = await this.prisma.notification.create({
       data: createNotificationDto,
     });
+
+    // 实时推送
+    if (notification && notification.userId) {
+      this.emitter.emitNotification(notification.userId, notification);
+    }
 
     return notification;
   }
@@ -62,12 +72,53 @@ export class NotificationsService {
       }),
     ]);
 
+    // 私信通知聚合：同一会话仅保留最新一条，计算未读总数（type: SYSTEM 且存在 relatedId -> 私信会话）
+    const aggregated: any[] = [];
+    const map = new Map<string, any>();
+
+    notifications.forEach((n) => {
+      const isPm =
+        n.type === NotificationType.SYSTEM &&
+        n.relatedId !== null &&
+        n.relatedId !== undefined;
+
+      if (!isPm) {
+        aggregated.push(n);
+        return;
+      }
+
+      const key = `pm-${n.relatedId}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          ...n,
+          aggregatedIds: [n.id],
+          aggregatedCount: 1,
+          aggregatedUnread: n.isRead ? 0 : 1,
+        });
+      } else {
+        const exist = map.get(key);
+        exist.aggregatedIds.push(n.id);
+        exist.aggregatedCount += 1;
+        exist.aggregatedUnread += n.isRead ? 0 : 1;
+        // 保留最新一条为基准，其他聚合信息已叠加
+        map.set(key, exist);
+      }
+    });
+
+    // 将聚合的 pm 加入返回列表（保持整体按时间排序，新数在前）
+    map.forEach((val) => aggregated.push(val));
+
+    aggregated.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+
     return {
-      data: notifications,
+      data: aggregated,
       meta: {
         page,
         limit,
-        total,
+        total: aggregated.length,
         unreadCount,
       },
     };
@@ -157,6 +208,27 @@ export class NotificationsService {
     });
 
     return { message: '通知删除成功' };
+  }
+
+  /**
+   * 按 relatedId 批量标记为已读（用于私信聚合）
+   */
+  async markByRelated(
+    userId: string,
+    relatedId: string,
+    type?: NotificationType,
+  ) {
+    const where: any = { userId, relatedId };
+    if (type) {
+      where.type = type;
+    }
+
+    const result = await this.prisma.notification.updateMany({
+      where,
+      data: { isRead: true },
+    });
+
+    return { message: '相关通知已标记为已读', count: result.count };
   }
 
   /**

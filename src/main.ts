@@ -1,20 +1,20 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 import { VersioningType } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { join } from 'path';
-import session from 'express-session';
-import cookieParser from 'cookie-parser';
 import { RedisStore } from 'connect-redis';
+import cookieParser from 'cookie-parser';
+import session from 'express-session';
+import { join } from 'path';
 import { createClient } from 'redis';
-import {
-  validationPipeConfig,
-  corsConfig,
-  sessionConfig,
-  redisConfig,
-} from './core/config/app.config';
+import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './core/common/filters';
 import { TransformInterceptor } from './core/common/interceptors';
+import {
+  corsConfig,
+  redisConfig,
+  sessionConfig,
+  validationPipeConfig,
+} from './core/config/app.config';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
