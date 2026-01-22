@@ -4,149 +4,22 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../core/prisma/prisma.service';
-import { CreateFavoriteDto } from './dto/create-favorite.dto';
-import { CreateFolderDto, UpdateFolderDto } from './dto/create-folder.dto';
 
+/**
+ * 收藏服务 - 简化版（无文件夹功能）
+ * 
+ * 注意：Folder 模型已从 schema 中移除
+ * 收藏功能简化为直接收藏帖子，不再支持文件夹分类
+ */
 @Injectable()
 export class FavoritesService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * 创建收藏夹
-   */
-  async createFolder(userId: string, createFolderDto: CreateFolderDto) {
-    const folder = await this.prisma.folder.create({
-      data: {
-        userId,
-        ...createFolderDto,
-      },
-    });
-
-    return folder;
-  }
-
-  /**
-   * 获取用户的收藏夹列表
-   */
-  async getFolders(userId: string, page: number = 1, limit: number = 20) {
-    const skip = (page - 1) * limit;
-
-    const [folders, total] = await Promise.all([
-      this.prisma.folder.findMany({
-        where: { userId },
-        include: {
-          _count: {
-            select: { favorites: true },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.folder.count({ where: { userId } }),
-    ]);
-
-    return {
-      data: folders.map((f) => ({
-        ...f,
-        favoriteCount: f._count.favorites,
-        _count: undefined,
-      })),
-      meta: {
-        page,
-        limit,
-        total,
-      },
-    };
-  }
-
-  /**
-   * 获取单个收藏夹详情
-   */
-  async getFolder(userId: string, folderId: string) {
-    const folder = await this.prisma.folder.findUnique({
-      where: { id: folderId },
-    });
-
-    if (!folder) {
-      throw new NotFoundException('收藏夹不存在');
-    }
-
-    if (folder.userId !== userId) {
-      throw new BadRequestException('无权访问此收藏夹');
-    }
-
-    return folder;
-  }
-
-  /**
-   * 更新收藏夹
-   */
-  async updateFolder(
-    userId: string,
-    folderId: string,
-    updateFolderDto: UpdateFolderDto,
-  ) {
-    // 检查收藏夹权限
-    const folder = await this.prisma.folder.findUnique({
-      where: { id: folderId },
-    });
-
-    if (!folder) {
-      throw new NotFoundException('收藏夹不存在');
-    }
-
-    if (folder.userId !== userId) {
-      throw new BadRequestException('无权修改此收藏夹');
-    }
-
-    const updatedFolder = await this.prisma.folder.update({
-      where: { id: folderId },
-      data: updateFolderDto,
-    });
-
-    return updatedFolder;
-  }
-
-  /**
-   * 删除收藏夹
-   */
-  async deleteFolder(userId: string, folderId: string) {
-    // 检查收藏夹权限
-    const folder = await this.prisma.folder.findUnique({
-      where: { id: folderId },
-    });
-
-    if (!folder) {
-      throw new NotFoundException('收藏夹不存在');
-    }
-
-    if (folder.userId !== userId) {
-      throw new BadRequestException('无权删除此收藏夹');
-    }
-
-    if (folder.isDefault) {
-      throw new BadRequestException('不能删除默认收藏夹');
-    }
-
-    // 删除该收藏夹中的所有收藏
-    await this.prisma.favorite.deleteMany({
-      where: { folderId },
-    });
-
-    // 删除收藏夹
-    await this.prisma.folder.delete({
-      where: { id: folderId },
-    });
-
-    return { message: '收藏夹已删除' };
-  }
-
-  /**
    * 收藏帖子
    */
-  async addFavorite(userId: string, createFavoriteDto: CreateFavoriteDto) {
-    const { postId, folderId, note } = createFavoriteDto;
+  async addFavorite(userId: string, dto: { postId: string; note?: string }) {
+    const { postId, note } = dto;
 
     // 检查帖子是否存在
     const post = await this.prisma.post.findUnique({
@@ -157,32 +30,22 @@ export class FavoritesService {
       throw new NotFoundException('帖子不存在');
     }
 
-    // 检查收藏夹是否存在且属于当前用户
-    const folder = await this.prisma.folder.findUnique({
-      where: { id: folderId },
-    });
-
-    if (!folder) {
-      throw new NotFoundException('收藏夹不存在');
+    if (post.isHidden) {
+      throw new NotFoundException('帖子不存在');
     }
 
-    if (folder.userId !== userId) {
-      throw new BadRequestException('无权访问此收藏夹');
-    }
-
-    // 检查是否已经在当前收藏夹收藏过此帖子
+    // 检查是否已经收藏过此帖子
     const existingFavorite = await this.prisma.favorite.findUnique({
       where: {
-        userId_postId_folderId: {
+        userId_postId: {
           userId,
           postId,
-          folderId,
         },
       },
     });
 
     if (existingFavorite) {
-      throw new BadRequestException('您已经在此收藏夹收藏过此帖子');
+      throw new BadRequestException('您已经收藏过此帖子');
     }
 
     // 创建收藏
@@ -190,7 +53,6 @@ export class FavoritesService {
       data: {
         userId,
         postId,
-        folderId,
         note,
       },
       include: {
@@ -233,35 +95,42 @@ export class FavoritesService {
   }
 
   /**
-   * 获取收藏夹中的帖子列表
+   * 通过帖子ID取消收藏
+   */
+  async removeFavoriteByPostId(userId: string, postId: string) {
+    const favorite = await this.prisma.favorite.findUnique({
+      where: {
+        userId_postId: {
+          userId,
+          postId,
+        },
+      },
+    });
+
+    if (!favorite) {
+      throw new NotFoundException('未收藏此帖子');
+    }
+
+    await this.prisma.favorite.delete({
+      where: { id: favorite.id },
+    });
+
+    return { message: '取消收藏成功' };
+  }
+
+  /**
+   * 获取用户的收藏列表
    */
   async getFavorites(
     userId: string,
-    folderId: string,
     page: number = 1,
     limit: number = 20,
   ) {
-    // 检查收藏夹权限
-    const folder = await this.prisma.folder.findUnique({
-      where: { id: folderId },
-    });
-
-    if (!folder) {
-      throw new NotFoundException('收藏夹不存在');
-    }
-
-    if (folder.userId !== userId) {
-      throw new BadRequestException('无权访问此收藏夹');
-    }
-
     const skip = (page - 1) * limit;
 
     const [favorites, total] = await Promise.all([
       this.prisma.favorite.findMany({
-        where: {
-          userId,
-          folderId,
-        },
+        where: { userId },
         include: {
           post: {
             select: {
@@ -290,12 +159,7 @@ export class FavoritesService {
         skip,
         take: limit,
       }),
-      this.prisma.favorite.count({
-        where: {
-          userId,
-          folderId,
-        },
-      }),
+      this.prisma.favorite.count({ where: { userId } }),
     ]);
 
     return {
@@ -304,21 +168,39 @@ export class FavoritesService {
         page,
         limit,
         total,
+        totalPages: Math.ceil(total / limit),
       },
     };
   }
 
   /**
-   * 检查是否收藏了指定帖子（在任意收藏夹中）
+   * 检查是否收藏了指定帖子
    */
   async isFavorited(userId: string, postId: string): Promise<boolean> {
-    const favorite = await this.prisma.favorite.findFirst({
+    const favorite = await this.prisma.favorite.findUnique({
       where: {
-        userId,
-        postId,
+        userId_postId: {
+          userId,
+          postId,
+        },
       },
     });
 
     return !!favorite;
+  }
+
+  /**
+   * 切换收藏状态
+   */
+  async toggleFavorite(userId: string, postId: string, note?: string) {
+    const isFav = await this.isFavorited(userId, postId);
+
+    if (isFav) {
+      await this.removeFavoriteByPostId(userId, postId);
+      return { action: 'removed', isFavorited: false };
+    } else {
+      await this.addFavorite(userId, { postId, note });
+      return { action: 'added', isFavorited: true };
+    }
   }
 }

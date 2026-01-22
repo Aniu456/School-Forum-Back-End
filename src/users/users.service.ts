@@ -1,18 +1,20 @@
 import {
+  ForbiddenException,
   Injectable,
   NotFoundException,
-  ForbiddenException,
 } from '@nestjs/common';
+import { CacheClear, Cacheable } from '../core/cache/cache.decorator';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   /**
    * 获取当前用户的完整资料
    */
+  @Cacheable({ keyPrefix: 'user:profile', ttl: 1800 })
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -48,6 +50,7 @@ export class UsersService {
   /**
    * 更新用户资料
    */
+  @CacheClear({ patterns: ['user:*', 'users:*'] })
   async updateProfile(userId: string, updateUserDto: UpdateUserDto) {
     // 验证用户是否存在
     const user = await this.prisma.user.findUnique({
@@ -85,6 +88,7 @@ export class UsersService {
   /**
    * 获取用户公开信息（包含统计数据）
    */
+  @Cacheable({ keyPrefix: 'user', ttl: 1800 })
   async getUserById(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -95,13 +99,12 @@ export class UsersService {
         avatar: true,
         bio: true,
         role: true,
+        followerCount: true,
+        followingCount: true,
         createdAt: true,
         _count: {
           select: {
             posts: true,
-            // 扩展功能：粉丝和关注数
-            // followers: true,
-            // following: true,
           },
         },
       },
@@ -112,13 +115,13 @@ export class UsersService {
     }
 
     // 构建响应数据
-    const { _count, ...userInfo } = user;
+    const { _count, followerCount, followingCount, ...userInfo } = user;
     return {
       ...userInfo,
       stats: {
         postCount: _count.posts,
-        followerCount: 0, // 后续扩展功能
-        followingCount: 0, // 后续扩展功能
+        followerCount,
+        followingCount,
       },
     };
   }
@@ -126,6 +129,7 @@ export class UsersService {
   /**
    * 获取用户发帖列表
    */
+  @Cacheable({ keyPrefix: 'user:posts', ttl: 600 })
   async getUserPosts(userId: string, page: number = 1, limit: number = 20) {
     // 验证用户是否存在
     const user = await this.prisma.user.findUnique({
@@ -185,7 +189,7 @@ export class UsersService {
         commentCount: post._count.comments,
         _count: undefined,
       })),
-      pagination: {
+      meta: {
         page,
         limit,
         total,
@@ -197,6 +201,7 @@ export class UsersService {
   /**
    * 获取用户统计数据
    */
+  @Cacheable({ keyPrefix: 'user:stats', ttl: 900 })
   async getUserStats(userId: string) {
     const stats = await this.prisma.user.findUnique({
       where: { id: userId },

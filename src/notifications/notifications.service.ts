@@ -28,6 +28,38 @@ export class NotificationsService {
     return notification;
   }
 
+  // =================================================================
+  // 📢 这里添加广播代理方法，供其他服务调用
+  // =================================================================
+
+  broadcastComment(data: any) {
+    this.emitter.emitComment(data);
+  }
+
+  broadcastReply(data: any) {
+    this.emitter.emitReply(data);
+  }
+
+  broadcastLike(data: any) {
+    this.emitter.emitLike(data);
+  }
+
+  broadcastFollow(data: any) {
+    this.emitter.emitFollow(data);
+  }
+
+  broadcastPostNew(data: any) {
+    this.emitter.emitPostNew(data);
+  }
+
+  broadcastPostUpdate(data: any) {
+    this.emitter.emitPostUpdate(data);
+  }
+
+  broadcastPostDelete(data: any) {
+    this.emitter.emitPostDelete(data);
+  }
+
   /**
    * 获取用户通知列表
    */

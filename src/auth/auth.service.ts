@@ -3,10 +3,13 @@ import {
   ConflictException,
   UnauthorizedException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { RedisService } from '../core/redis/redis.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterAdminDto } from './dto/register-admin.dto';
 import { LoginDto } from './dto/login.dto';
@@ -24,6 +27,8 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    @Inject(forwardRef(() => RedisService))
+    private redisService: RedisService,
   ) {
     // 🛡️ 验证必需的环境变量（启动时检查）
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
@@ -99,15 +104,21 @@ export class AuthService {
 
   /**
    * 用户登录
+   * 支持使用邮箱或用户名登录
    */
   async login(loginDto: LoginDto) {
-    // 查找用户
-    const user = await this.prisma.user.findUnique({
-      where: { email: loginDto.email },
+    // 查找用户 - 支持邮箱或用户名
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: loginDto.email },
+          { username: loginDto.email },
+        ],
+      },
     });
 
     if (!user) {
-      throw new UnauthorizedException('邮箱或密码错误');
+      throw new UnauthorizedException('邮箱/用户名或密码错误');
     }
 
     // 检查用户状态
@@ -126,8 +137,16 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('邮箱或密码错误');
+      throw new UnauthorizedException('邮箱/用户名或密码错误');
     }
+
+    // 更新最后登录时间
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        lastLoginAt: new Date(),
+      },
+    });
 
     // 生成 JWT Token
     const tokens = await this.generateTokens(user.id, user.email, user.role);
@@ -365,5 +384,42 @@ export class AuthService {
     return {
       message: '密码重置成功',
     };
+  }
+
+  /**
+   * 登出 - 将 token 加入黑名单
+   */
+  async logout(token: string): Promise<{ message: string }> {
+    try {
+      // 解码 token 获取过期时间
+      const decoded = this.jwtService.decode(token) as { exp?: number } | null;
+      
+      if (decoded?.exp) {
+        // 计算 token 剩余有效期（秒）
+        const ttl = decoded.exp - Math.floor(Date.now() / 1000);
+        
+        if (ttl > 0) {
+          // 将 token 加入 Redis 黑名单，过期时间与 token 一致
+          await this.redisService.set(`blacklist:${token}`, '1', ttl);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to blacklist token:', error);
+    }
+
+    return { message: '登出成功' };
+  }
+
+  /**
+   * 检查 token 是否在黑名单中
+   */
+  async isTokenBlacklisted(token: string): Promise<boolean> {
+    try {
+      const result = await this.redisService.get(`blacklist:${token}`);
+      return result !== null;
+    } catch (error) {
+      console.error('Failed to check token blacklist:', error);
+      return false;
+    }
   }
 }

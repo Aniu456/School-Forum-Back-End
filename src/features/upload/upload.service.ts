@@ -11,7 +11,7 @@ export class UploadService {
    * 生成文件访问 URL
    */
   generateFileUrl(filename: string, type: 'avatar' | 'image' | 'document'): string {
-    const baseUrl = this.configService.get('BASE_URL', 'http://localhost:30000');
+    const baseUrl = this.configService.get('BASE_URL', 'http://localhost:3000');
     return `${baseUrl}/uploads/${type}s/${filename}`;
   }
 
@@ -82,11 +82,41 @@ export class UploadService {
   }
 
   /**
+   * 安全地构建文件路径，防止路径遍历攻击
+   */
+  private getSafeFilePath(filename: string, type: 'avatar' | 'image' | 'document'): string | null {
+    // 移除任何路径分隔符，只保留文件名
+    const safeFilename = path.basename(filename);
+    
+    // 检查文件名是否被修改（包含路径遍历尝试）
+    if (safeFilename !== filename || filename.includes('..')) {
+      console.warn(`路径遍历攻击尝试被阻止: ${filename}`);
+      return null;
+    }
+
+    const uploadsDir = path.join(process.cwd(), 'uploads', `${type}s`);
+    const filePath = path.join(uploadsDir, safeFilename);
+
+    // 验证最终路径是否在上传目录内
+    if (!filePath.startsWith(uploadsDir)) {
+      console.warn(`路径遍历攻击尝试被阻止: ${filename}`);
+      return null;
+    }
+
+    return filePath;
+  }
+
+  /**
    * 删除文件
    */
   async deleteFile(filename: string, type: 'avatar' | 'image' | 'document'): Promise<void> {
     try {
-      const filePath = path.join(process.cwd(), 'uploads', `${type}s`, filename);
+      const filePath = this.getSafeFilePath(filename, type);
+      
+      if (!filePath) {
+        console.warn(`无效的文件名: ${filename}`);
+        return;
+      }
 
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
@@ -101,7 +131,12 @@ export class UploadService {
    * 验证文件是否存在
    */
   fileExists(filename: string, type: 'avatar' | 'image' | 'document'): boolean {
-    const filePath = path.join(process.cwd(), 'uploads', `${type}s`, filename);
+    const filePath = this.getSafeFilePath(filename, type);
+    
+    if (!filePath) {
+      return false;
+    }
+
     return fs.existsSync(filePath);
   }
 }

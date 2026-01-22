@@ -6,9 +6,11 @@ import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { join } from 'path';
 import { createClient } from 'redis';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './core/common/filters';
 import { TransformInterceptor } from './core/common/interceptors';
+import { winstonLogger } from './core/logger';
 import {
   corsConfig,
   redisConfig,
@@ -24,7 +26,7 @@ async function bootstrap() {
   // ============================================
 
   // 配置上传文件的静态访问路径
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
   });
 
@@ -34,9 +36,52 @@ async function bootstrap() {
 
   // 1. 全局异常过滤器
   app.useGlobalFilters(new AllExceptionsFilter());
-
   // 2. 全局响应拦截器
   app.useGlobalInterceptors(new TransformInterceptor());
+
+  // ============================================
+  // 📚 Swagger API 文档配置
+  // ============================================
+  if (process.env.SWAGGER_ENABLED !== 'false') {
+    const config = new DocumentBuilder()
+      .setTitle('校园论坛 API')
+      .setDescription('校园论坛后端系统接口文档')
+      .setVersion('1.0')
+      .addTag('auth', '认证相关接口')
+      .addTag('users', '用户管理')
+      .addTag('posts', '帖子管理')
+      .addTag('comments', '评论管理')
+      .addTag('social', '社交功能（关注、点赞、收藏）')
+      .addTag('notifications', '通知管理')
+      .addTag('admin', '管理员功能')
+      .addTag('search', '搜索功能')
+      .addTag('upload', '文件上传')
+      .addTag('announcements', '公告管理')
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          name: 'JWT',
+          description: '请输入JWT token',
+          in: 'header',
+        },
+        'JWT-auth', // 这个名字要和控制器中的 @ApiBearerAuth() 一致
+      )
+      .build();
+
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api-docs', app, document, {
+      swaggerOptions: {
+        persistAuthorization: true, // 持久化认证信息
+        tagsSorter: 'alpha', // 按字母顺序排序标签
+        operationsSorter: 'alpha', // 按字母顺序排序操作
+      },
+      customSiteTitle: '校园论坛 API 文档',
+    });
+
+    winstonLogger.info('Swagger documentation available at /api-docs');
+  }
 
   // 3. 全局验证管道
   app.useGlobalPipes(validationPipeConfig);
@@ -64,17 +109,17 @@ async function bootstrap() {
   let sessionStore: any = undefined;
   try {
     await redisClient.connect();
-    console.log('✅ Redis Session Store 已连接');
+    winstonLogger.info('Redis Session Store connected');
     sessionStore = new RedisStore({
       client: redisClient,
       prefix: 'session:',
     });
   } catch (error) {
-    console.error('❌ Redis 连接失败:', error);
+    winstonLogger.error('Redis connection failed', error?.toString());
     if (process.env.NODE_ENV === 'production') {
       throw new Error('生产环境必须连接 Redis');
     }
-    console.warn('⚠️  将使用内存 Session 存储 (仅用于开发)');
+    winstonLogger.warn('Using memory Session store (development only)');
   }
 
   // Session 配置
@@ -95,8 +140,8 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT ?? 3000;
-  await app.listen(port, () => {
-    console.log(`
+  await app.listen(port);
+  winstonLogger.info(`
 ╔═══════════════════════════════════════════════════════╗
 ║                                                       ║
 ║   🚀 校园论坛后端系统已启动                            ║
@@ -107,7 +152,6 @@ async function bootstrap() {
 ║                                                       ║
 ╚═══════════════════════════════════════════════════════╝
     `);
-  });
 }
 
 void bootstrap();

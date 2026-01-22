@@ -300,6 +300,38 @@ export class NotificationsGateway
     this.logger.log(`通知已推送给用户 ${userId}`);
   }
 
+  // =================================================================
+  // 📢 全局/特定事件广播 (适配前端 websocketService)
+  // =================================================================
+
+  broadcastComment(data: any) {
+    this.server.emit('comment', data);
+  }
+
+  broadcastReply(data: any) {
+    this.server.emit('reply', data);
+  }
+
+  broadcastLike(data: any) {
+    this.server.emit('like', data);
+  }
+
+  broadcastFollow(data: any) {
+    this.server.emit('follow', data);
+  }
+
+  broadcastPostNew(data: any) {
+    this.server.emit('post:new', data);
+  }
+
+  broadcastPostUpdate(data: any) {
+    this.server.emit('post:update', data);
+  }
+
+  broadcastPostDelete(data: any) {
+    this.server.emit('post:delete', data);
+  }
+
   /**
    * 广播未读通知数量给用户
    * ⭐️ 添加了错误处理和日志记录

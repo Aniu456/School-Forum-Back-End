@@ -1,8 +1,8 @@
-import { IsUUID, IsEnum } from 'class-validator';
+import { IsString, IsEnum } from 'class-validator';
 import { TargetType } from '@prisma/client';
 
 export class ToggleLikeDto {
-  @IsUUID()
+  @IsString()
   targetId: string;
 
   @IsEnum(TargetType)

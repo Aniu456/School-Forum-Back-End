@@ -6,7 +6,6 @@ import {
   Get,
   Param,
   ParseIntPipe,
-  ParseUUIDPipe,
   Post,
   Query,
 } from '@nestjs/common';
@@ -60,7 +59,7 @@ export class ConversationsController {
   @Get(':id')
   async getConversation(
     @CurrentUser('id') userId: string,
-    @Param('id', ParseUUIDPipe) conversationId: string,
+    @Param('id') conversationId: string,
   ) {
     return this.conversationsService.getConversation(conversationId, userId);
   }
@@ -72,7 +71,7 @@ export class ConversationsController {
   @Get(':id/messages')
   async getMessages(
     @CurrentUser('id') userId: string,
-    @Param('id', ParseUUIDPipe) conversationId: string,
+    @Param('id') conversationId: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
   ) {
@@ -91,7 +90,7 @@ export class ConversationsController {
   @Post(':id/messages')
   async sendMessage(
     @CurrentUser('id') userId: string,
-    @Param('id', ParseUUIDPipe) conversationId: string,
+    @Param('id') conversationId: string,
     @Body() sendDto: SendMessageDto,
   ) {
     return this.conversationsService.sendMessage(
@@ -108,7 +107,7 @@ export class ConversationsController {
   @Delete('messages/:messageId')
   async deleteMessage(
     @CurrentUser('id') userId: string,
-    @Param('messageId', ParseUUIDPipe) messageId: string,
+    @Param('messageId') messageId: string,
   ) {
     return this.conversationsService.deleteMessage(messageId, userId);
   }
@@ -120,7 +119,7 @@ export class ConversationsController {
   @Delete(':id')
   async deleteConversation(
     @CurrentUser('id') userId: string,
-    @Param('id', ParseUUIDPipe) conversationId: string,
+    @Param('id') conversationId: string,
   ) {
     return this.conversationsService.deleteConversation(conversationId, userId);
   }

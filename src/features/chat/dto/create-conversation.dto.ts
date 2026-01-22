@@ -1,7 +1,7 @@
-import { IsNotEmpty, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateConversationDto {
     @IsNotEmpty({ message: '对方用户ID不能为空' })
-    @IsUUID('4', { message: '对方用户ID格式不正确' })
+    @IsString()
     participantId: string; // 对方用户ID
 }

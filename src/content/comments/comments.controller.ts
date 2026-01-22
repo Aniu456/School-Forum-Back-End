@@ -15,10 +15,11 @@ import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { CurrentUser } from '../../core/common/decorators/current-user.decorator';
 import { Public } from '../../core/common/decorators/public.decorator';
+import { Role } from '@prisma/client';
 
 interface AuthUser {
   id: string;
-  role: string;
+  role: Role;
 }
 
 @Controller('comments')
@@ -58,6 +59,6 @@ export class CommentsController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   async remove(@Param('id') commentId: string, @CurrentUser() user: AuthUser) {
-    return this.commentsService.remove(commentId, user.id, user.role as any);
+    return this.commentsService.remove(commentId, user.id, user.role);
   }
 }

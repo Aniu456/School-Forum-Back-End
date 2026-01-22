@@ -1,118 +1,39 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../core/prisma/prisma.service';
-import { ItemStatus } from '@prisma/client';
 
+/**
+ * SecondhandService - DISABLED
+ * 
+ * This service has been disabled because the SecondhandItem table was removed.
+ * Secondhand marketplace functionality can now be implemented using regular Posts
+ * with specific tags (e.g., #二手交易).
+ * 
+ * To re-enable:
+ * 1. Re-add SecondhandItem model to schema.prisma
+ * 2. Run: npx prisma migrate dev
+ * 3. Uncomment the implementation
+ */
 @Injectable()
 export class SecondhandService {
     constructor(private prisma: PrismaService) { }
 
-    async create(userId: string, data: any) {
-        return this.prisma.secondhandItem.create({
-            data: {
-                ...data,
-                sellerId: userId,
-            },
-            include: {
-                seller: {
-                    select: {
-                        id: true,
-                        username: true,
-                        nickname: true,
-                        avatar: true,
-                    },
-                },
-            },
-        });
+    async create(_userId: string, _data: any) {
+        throw new Error('Secondhand marketplace has been disabled. Please use regular posts with #二手交易 tag instead.');
     }
 
-    async findAll(page = 1, limit = 20, category?: string, status?: ItemStatus) {
-        const skip = (page - 1) * limit;
-        const where: any = { isDeleted: false };
-        if (category) where.category = category;
-
-        // 默认只展示未售出的记录；如显式传入 status 则按指定状态筛选
-        if (status) {
-            where.status = status;
-        } else {
-            where.status = { not: ItemStatus.SOLD };
-        }
-
-        const [items, total] = await Promise.all([
-            this.prisma.secondhandItem.findMany({
-                where,
-                include: {
-                    seller: {
-                        select: {
-                            id: true,
-                            username: true,
-                            nickname: true,
-                            avatar: true,
-                        },
-                    },
-                },
-                orderBy: { createdAt: 'desc' },
-                skip,
-                take: limit,
-            }),
-            this.prisma.secondhandItem.count({ where }),
-        ]);
-
-        return { data: items, meta: { page, limit, total } };
+    async findAll(_page = 1, _limit = 20, _category?: string, _status?: any) {
+        throw new Error('Secondhand marketplace has been disabled. Please use regular posts with #二手交易 tag instead.');
     }
 
-    async findOne(id: string) {
-        const item = await this.prisma.secondhandItem.findUnique({
-            where: { id },
-            include: {
-                seller: {
-                    select: {
-                        id: true,
-                        username: true,
-                        nickname: true,
-                        avatar: true,
-                    },
-                },
-            },
-        });
-
-        if (item && !item.isDeleted) {
-            await this.prisma.secondhandItem.update({
-                where: { id },
-                data: { viewCount: { increment: 1 } },
-            });
-        }
-
-        return item;
+    async findOne(_id: string) {
+        throw new Error('Secondhand marketplace has been disabled. Please use regular posts with #二手交易 tag instead.');
     }
 
-    async update(id: string, userId: string, data: any) {
-        const item = await this.prisma.secondhandItem.findUnique({
-            where: { id },
-        });
-
-        if (!item || item.sellerId !== userId) {
-            throw new Error('无权限');
-        }
-
-        return this.prisma.secondhandItem.update({
-            where: { id },
-            data,
-        });
+    async update(_id: string, _userId: string, _data: any) {
+        throw new Error('Secondhand marketplace has been disabled. Please use regular posts with #二手交易 tag instead.');
     }
 
-    async remove(id: string, userId: string) {
-        const item = await this.prisma.secondhandItem.findUnique({
-            where: { id },
-        });
-
-        if (!item || item.sellerId !== userId) {
-            throw new Error('无权限');
-        }
-
-        // 软删除：标记为已删除
-        return this.prisma.secondhandItem.update({
-            where: { id },
-            data: { isDeleted: true },
-        });
+    async remove(_id: string, _userId: string) {
+        throw new Error('Secondhand marketplace has been disabled. Please use regular posts with #二手交易 tag instead.');
     }
 }

@@ -84,6 +84,7 @@ export class FollowsService {
     ]);
 
     void this.realtimeService.notifyNewFollower(userId, followingId);
+    void this.realtimeService.broadcastFollow(userId, followingId);
 
     return {
       message: '关注成功',

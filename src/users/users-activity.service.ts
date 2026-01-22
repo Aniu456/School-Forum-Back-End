@@ -128,12 +128,6 @@ export class UsersActivityService {
                             },
                         },
                     },
-                    folder: {
-                        select: {
-                            id: true,
-                            name: true,
-                        },
-                    },
                 },
             }),
             this.prisma.favorite.count({ where: { userId } }),

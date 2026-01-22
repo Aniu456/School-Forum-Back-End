@@ -51,19 +51,23 @@ export class AnnouncementsService {
                     select: { id: true },
                 });
 
-                // 批量创建通知
-                await Promise.all(
-                    users.map((user) =>
-                        this.notificationsService.create({
-                            userId: user.id,
-                            type: 'SYSTEM',
-                            senderId: authorId,
-                            title: '新公告',
-                            content: `${announcement.title}`,
-                            relatedId: announcement.id,
-                        }),
-                    ),
-                );
+                // 分批创建通知，每批100个，避免连接池耗尽
+                const BATCH_SIZE = 100;
+                for (let i = 0; i < users.length; i += BATCH_SIZE) {
+                    const batch = users.slice(i, i + BATCH_SIZE);
+                    await Promise.all(
+                        batch.map((user) =>
+                            this.notificationsService.create({
+                                userId: user.id,
+                                type: 'SYSTEM',
+                                senderId: authorId,
+                                title: '新公告',
+                                content: `${announcement.title}`,
+                                relatedId: announcement.id,
+                            }),
+                        ),
+                    );
+                }
 
                 // WebSocket实时广播
                 this.realtimeService.broadcastNewAnnouncement(announcement);

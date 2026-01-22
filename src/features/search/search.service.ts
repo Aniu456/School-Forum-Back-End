@@ -54,7 +54,7 @@ export class SearchService {
       orderBy = { createdAt: 'desc' };
     }
 
-    // 执行搜索
+    // 执行搜索 - 直接从 Post 取 likeCount，避免 N+1 查询
     const [posts, total] = await Promise.all([
       this.prisma.post.findMany({
         where,
@@ -65,6 +65,8 @@ export class SearchService {
           images: true,
           tags: true,
           viewCount: true,
+          likeCount: true,
+          commentCount: true,
           createdAt: true,
           updatedAt: true,
           author: {
@@ -75,11 +77,6 @@ export class SearchService {
               avatar: true,
             },
           },
-          _count: {
-            select: {
-              comments: true,
-            },
-          },
         },
         orderBy,
         skip,
@@ -88,38 +85,26 @@ export class SearchService {
       this.prisma.post.count({ where }),
     ]);
 
-    // 获取每个帖子的点赞数
-    const postsWithCounts = await Promise.all(
-      posts.map(async (post) => {
-        const likeCount = await this.prisma.like.count({
-          where: {
-            targetId: post.id,
-            targetType: 'POST',
-          },
-        });
+    // 格式化结果，截取内容摘要
+    const postsWithPreview = posts.map((post) => {
+      const contentPreview =
+        post.content.length > 200
+          ? post.content.substring(0, 200) + '...'
+          : post.content;
 
-        // 截取内容摘要（前200字符）
-        const contentPreview =
-          post.content.length > 200
-            ? post.content.substring(0, 200) + '...'
-            : post.content;
-
-        return {
-          ...post,
-          content: contentPreview,
-          likeCount,
-          commentCount: post._count.comments,
-          _count: undefined,
-        };
-      }),
-    );
+      return {
+        ...post,
+        content: contentPreview,
+      };
+    });
 
     return {
-      data: postsWithCounts,
+      data: postsWithPreview,
       meta: {
         page,
         limit,
         total,
+        totalPages: Math.ceil(total / limit),
         query,
       },
     };
@@ -189,14 +174,18 @@ export class SearchService {
   }
 
   /**
-   * 获取热门搜索标签
+   * 获取热门搜索标签（优化：只从最近的帖子中统计）
    */
   async getPopularTags(limit: number = 10) {
-    // 获取所有帖子的标签
+    // 只获取最近 1000 篇帖子的标签，避免全表扫描
     const posts = await this.prisma.post.findMany({
       select: {
         tags: true,
       },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 1000,
     });
 
     // 统计标签频率

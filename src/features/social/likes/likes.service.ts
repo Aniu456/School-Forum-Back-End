@@ -1,15 +1,14 @@
 import {
-  Injectable,
-  NotFoundException,
   BadRequestException,
   Inject,
+  Injectable,
+  NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { PrismaService } from '../../../core/prisma/prisma.service';
-import { ToggleLikeDto } from './dto/toggle-like.dto';
 import { TargetType } from '@prisma/client';
+import { PrismaService } from '../../../core/prisma/prisma.service';
 import { NotificationsService } from '../../../notifications/notifications.service';
-import { PointsService } from '../../../users/points.service';
+import { ToggleLikeDto } from './dto/toggle-like.dto';
 
 @Injectable()
 export class LikesService {
@@ -17,9 +16,7 @@ export class LikesService {
     private prisma: PrismaService,
     @Inject(forwardRef(() => NotificationsService))
     private notificationsService: NotificationsService,
-    @Inject(forwardRef(() => PointsService))
-    private pointsService: PointsService,
-  ) { }
+  ) {}
 
   /**
    * 点赞/取消点赞（切换）
@@ -53,41 +50,33 @@ export class LikesService {
           },
         });
 
-        // 减少点赞数
+        // 减少点赞数（防止变成负数）
         if (targetType === TargetType.POST) {
-          await tx.post.update({
+          const post = await tx.post.findUnique({
             where: { id: targetId },
-            data: { likeCount: { decrement: 1 } },
+            select: { likeCount: true },
           });
+          if (post && post.likeCount > 0) {
+            await tx.post.update({
+              where: { id: targetId },
+              data: { likeCount: { decrement: 1 } },
+            });
+          }
         } else if (targetType === TargetType.COMMENT) {
-          await tx.comment.update({
+          const comment = await tx.comment.findUnique({
             where: { id: targetId },
-            data: { likeCount: { decrement: 1 } },
+            select: { likeCount: true },
           });
+          if (comment && comment.likeCount > 0) {
+            await tx.comment.update({
+              where: { id: targetId },
+              data: { likeCount: { decrement: 1 } },
+            });
+          }
         }
       });
       isLiked = false;
       message = '取消点赞成功';
-
-      // 取消点赞时给被点赞者扣积分
-      try {
-        const target =
-          targetType === TargetType.POST
-            ? await this.prisma.post.findUnique({
-              where: { id: targetId },
-              select: { authorId: true },
-            })
-            : await this.prisma.comment.findUnique({
-              where: { id: targetId },
-              select: { authorId: true },
-            });
-
-        if (target && target.authorId !== userId) {
-          await this.pointsService.addPoints(target.authorId, 'LIKE_REMOVED', targetId);
-        }
-      } catch (error) {
-        console.error('Failed to deduct points for like removal:', error);
-      }
     } else {
       // 未点赞，添加点赞
       await this.prisma.$transaction(async (tx) => {
@@ -112,6 +101,14 @@ export class LikesService {
           });
         }
       });
+
+      // 🚀 广播点赞事件
+      this.notificationsService.broadcastLike({
+        postId: targetType === TargetType.POST ? targetId : undefined,
+        commentId: targetType === TargetType.COMMENT ? targetId : undefined,
+        userId,
+      });
+
       isLiked = true;
       message = '点赞成功';
 
@@ -120,13 +117,13 @@ export class LikesService {
         const target =
           targetType === TargetType.POST
             ? await this.prisma.post.findUnique({
-              where: { id: targetId },
-              select: { authorId: true, title: true },
-            })
+                where: { id: targetId },
+                select: { authorId: true, title: true },
+              })
             : await this.prisma.comment.findUnique({
-              where: { id: targetId },
-              select: { authorId: true, content: true },
-            });
+                where: { id: targetId },
+                select: { authorId: true, content: true },
+              });
 
         if (target && target.authorId !== userId) {
           await this.notificationsService.create({
@@ -139,14 +136,6 @@ export class LikesService {
                 : `赞了你的评论: ${(target as any).content?.substring(0, 30)}...`,
             relatedId: targetId,
           });
-        }
-        // 点赞时给被点赞者加积分
-        if (target && target.authorId !== userId) {
-          try {
-            await this.pointsService.addPoints(target.authorId, 'RECEIVED_LIKE', targetId);
-          } catch (error) {
-            console.error('Failed to add points for receiving like:', error);
-          }
         }
       } catch (error) {
         console.error('Failed to send like notification:', error);
@@ -171,7 +160,7 @@ export class LikesService {
   }
 
   /**
-   * 获取用户的点赞列表
+   * 获取用户的点赞列表（优化：批量查询避免N+1问题）
    */
   async getUserLikes(userId: string, page: number = 1, limit: number = 20) {
     const skip = (page - 1) * limit;
@@ -194,12 +183,23 @@ export class LikesService {
       }),
     ]);
 
-    // 获取点赞目标的详细信息
-    const likesWithDetails = await Promise.all(
-      likes.map(async (like) => {
-        if (like.targetType === TargetType.POST) {
-          const post = await this.prisma.post.findUnique({
-            where: { id: like.targetId },
+    // 分离帖子和评论的ID
+    const postIds = likes
+      .filter((like) => like.targetType === TargetType.POST)
+      .map((like) => like.targetId);
+
+    const commentIds = likes
+      .filter((like) => like.targetType === TargetType.COMMENT)
+      .map((like) => like.targetId);
+
+    // 批量查询帖子和评论
+    const [posts, comments] = await Promise.all([
+      // 批量查询帖子
+      postIds.length > 0
+        ? this.prisma.post.findMany({
+            where: {
+              id: { in: postIds },
+            },
             select: {
               id: true,
               title: true,
@@ -216,14 +216,15 @@ export class LikesService {
                 },
               },
             },
-          });
-          return {
-            ...like,
-            target: post,
-          };
-        } else {
-          const comment = await this.prisma.comment.findUnique({
-            where: { id: like.targetId },
+          })
+        : Promise.resolve([]),
+
+      // 批量查询评论
+      commentIds.length > 0
+        ? this.prisma.comment.findMany({
+            where: {
+              id: { in: commentIds },
+            },
             select: {
               id: true,
               content: true,
@@ -238,14 +239,32 @@ export class LikesService {
                 },
               },
             },
-          });
-          return {
-            ...like,
-            target: comment,
-          };
-        }
-      }),
+          })
+        : Promise.resolve([]),
+    ]);
+
+    // 创建Map以便快速查找
+    const postMap = new Map(
+      posts.map((post) => [post.id, post] as [string, any]),
     );
+    const commentMap = new Map(
+      comments.map((comment) => [comment.id, comment] as [string, any]),
+    );
+
+    // 组合结果
+    const likesWithDetails = likes.map((like) => {
+      if (like.targetType === TargetType.POST) {
+        return {
+          ...like,
+          target: postMap.get(like.targetId),
+        };
+      } else {
+        return {
+          ...like,
+          target: commentMap.get(like.targetId),
+        };
+      }
+    });
 
     return {
       data: likesWithDetails,
@@ -259,24 +278,31 @@ export class LikesService {
 
   /**
    * 验证目标是否存在
+   * 优化：使用单个查询检查
    */
   private async validateTarget(targetId: string, targetType: TargetType) {
     if (targetType === TargetType.POST) {
       const post = await this.prisma.post.findUnique({
         where: { id: targetId },
+        select: { id: true, authorId: true, title: true },
       });
 
       if (!post) {
         throw new NotFoundException('帖子不存在');
       }
+
+      return post;
     } else if (targetType === TargetType.COMMENT) {
       const comment = await this.prisma.comment.findUnique({
         where: { id: targetId },
+        select: { id: true, authorId: true, content: true },
       });
 
       if (!comment) {
         throw new NotFoundException('评论不存在');
       }
+
+      return comment;
     } else {
       throw new BadRequestException('无效的目标类型');
     }

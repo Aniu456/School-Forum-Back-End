@@ -99,7 +99,7 @@ export class ActivitiesService {
         ]);
 
         // 合并并排序所有活动
-        const activities = [
+        const allActivities = [
             ...posts.map((p) => ({
                 type: 'POST',
                 id: p.id,
@@ -125,16 +125,18 @@ export class ActivitiesService {
                 createdAt: a.createdAt,
                 data: a,
             })),
-        ]
-            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-            .slice(skip, skip + limit);
+        ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+        const total = allActivities.length;
+        const paginatedActivities = allActivities.slice(skip, skip + limit);
 
         return {
-            data: activities,
+            data: paginatedActivities,
             meta: {
                 page,
                 limit,
-                total: activities.length,
+                total,
+                totalPages: Math.ceil(total / limit),
             },
         };
     }
@@ -166,7 +168,7 @@ export class ActivitiesService {
             }),
         ]);
 
-        const activities = [
+        const allActivities = [
             ...posts.map((p) => ({
                 type: 'POST',
                 id: p.id,
@@ -182,16 +184,18 @@ export class ActivitiesService {
                 createdAt: c.createdAt,
                 data: c,
             })),
-        ]
-            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-            .slice(skip, skip + limit);
+        ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+        const total = allActivities.length;
+        const paginatedActivities = allActivities.slice(skip, skip + limit);
 
         return {
-            data: activities,
+            data: paginatedActivities,
             meta: {
                 page,
                 limit,
-                total: activities.length,
+                total,
+                totalPages: Math.ceil(total / limit),
             },
         };
     }

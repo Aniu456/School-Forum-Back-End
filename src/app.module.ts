@@ -13,6 +13,8 @@ import { CommonModule } from './core/common/common.module';
 import { JwtAuthGuard } from './core/common/guards/jwt-auth.guard';
 import { RolesGuard } from './core/common/guards/roles.guard';
 import { LoggerMiddleware } from './core/common/middleware/logger.middleware';
+import { CacheModule } from './core/cache';
+import { LoggerModule } from './core/logger';
 import { PrismaModule } from './core/prisma/prisma.module';
 import { RedisModule } from './core/redis/redis.module';
 import { ActivitiesModule } from './features/activities/activities.module';
@@ -36,6 +38,8 @@ import { UsersModule } from './users/users.module';
     }),
     ScheduleModule.forRoot(),
     CommonModule,
+    LoggerModule,
+    CacheModule,
     PrismaModule,
     RedisModule,
 

@@ -41,14 +41,8 @@ model User {
   followers                Follow[]                  @relation("Following") // 粉丝列表
   following                Follow[]                  @relation("Follower") // 关注列表
   favorites                Favorite[]
-  folders                  Folder[]
-  postDrafts               PostDraft[]
-  loginHistories           UserLoginHistory[] // 登录历史
   verificationCodes        VerificationCode[] // 验证码
   announcements            Announcement[] // 发布的公告
-  userPoints               UserPoints? // 积分
-  secondhandItems          SecondhandItem[]
-  studyResources           StudyResource[]
   conversationParticipants ConversationParticipant[]
   messages                 Message[]
 
@@ -72,7 +66,7 @@ model Post {
   content       String    @db.Text
   images        String[] // PostgreSQL 数组类型，存储图片 URL
   authorId      String    @map("author_id")
-  tags          String[] // 标签数组
+  tags          String[] // 标签数组（可用于话题、二手交易、学习资源等分类）
   viewCount     Int       @default(0) @map("view_count")
   likeCount     Int       @default(0) @map("like_count")
   commentCount  Int       @default(0) @map("comment_count")
@@ -180,28 +174,6 @@ enum NotificationType {
 }
 
 // ============================================
-// 帖子草稿表
-// ============================================
-model PostDraft {
-  id        String   @id @default(uuid())
-  title     String?  @db.VarChar(200)
-  content   String?  @db.Text
-  images    String[] // 图片数组
-  tags      String[] // 标签数组
-  authorId  String   @map("author_id")
-  postId    String?  @map("post_id") // 关联已发布的帖子（可空）
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // 关联关系
-  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
-
-  @@index([authorId, updatedAt])
-  @@index([authorId, createdAt])
-  @@map("post_drafts")
-}
-
-// ============================================
 // 关注表
 // ============================================
 model Follow {
@@ -222,101 +194,23 @@ model Follow {
 }
 
 // ============================================
-// 帖子评分表（用于排序和推荐）
-// ============================================
-model PostScore {
-  id            String   @id @default(uuid())
-  postId        String   @unique @map("post_id")
-  hotScore      Float    @default(0) @map("hot_score")
-  trendingScore Float    @default(0) @map("trending_score")
-  qualityScore  Float    @default(0) @map("quality_score")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  @@index([hotScore])
-  @@index([trendingScore])
-  @@index([qualityScore])
-  @@map("post_scores")
-}
-
-// ============================================
-// 话题表
-// ============================================
-model Topic {
-  id            String   @id @default(uuid())
-  name          String   @unique @db.VarChar(50)
-  description   String?  @db.VarChar(200)
-  postCount     Int      @default(0) @map("post_count")
-  followerCount Int      @default(0) @map("follower_count")
-  isHot         Boolean  @default(false) @map("is_hot")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  @@index([postCount])
-  @@index([isHot])
-  @@map("topics")
-}
-
-// ============================================
-// 收藏夹表
-// ============================================
-model Folder {
-  id          String   @id @default(uuid())
-  userId      String   @map("user_id")
-  name        String   @db.VarChar(50)
-  description String?  @db.VarChar(200)
-  isDefault   Boolean  @default(false) @map("is_default")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  // 关联关系
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  favorites Favorite[]
-
-  @@index([userId])
-  @@index([isDefault])
-  @@map("folders")
-}
-
-// ============================================
-// 收藏表
+// 收藏表（简化版，移除文件夹功能）
 // ============================================
 model Favorite {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
   postId    String   @map("post_id")
-  folderId  String   @map("folder_id")
   note      String?  @db.Text // 收藏备注
   createdAt DateTime @default(now()) @map("created_at")
 
   // 关联关系
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
-  folder Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, postId, folderId]) // 同一用户在同一收藏夹内不能重复收藏同一帖子
+  @@unique([userId, postId]) // 防止重复收藏
   @@index([userId, createdAt])
   @@index([postId])
-  @@index([folderId])
   @@map("favorites")
-}
-
-// ============================================
-// 用户登录历史表
-// ============================================
-model UserLoginHistory {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  loginIp   String   @map("login_ip") @db.VarChar(50)
-  loginTime DateTime @default(now()) @map("login_time")
-  userAgent String?  @map("user_agent") @db.VarChar(500)
-  device    String?  @db.VarChar(100) // 设备类型
-  location  String?  @db.VarChar(100) // 登录地点
-
-  // 关联关系
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, loginTime])
-  @@map("user_login_histories")
 }
 
 // ============================================
@@ -377,136 +271,6 @@ enum AnnouncementType {
   INFO // 一般公告
   WARNING // 警告公告
   URGENT // 紧急公告
-}
-
-// ============================================
-// 用户积分表
-// ============================================
-model UserPoints {
-  id          String   @id @default(uuid())
-  userId      String   @unique @map("user_id")
-  totalPoints Int      @default(0) @map("total_points")
-  level       Int      @default(1)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  pointsHistories UserPointsHistory[]
-
-  @@index([totalPoints])
-  @@index([level])
-  @@map("user_points")
-}
-
-// ============================================
-// 积分历史表
-// ============================================
-model UserPointsHistory {
-  id           String       @id @default(uuid())
-  userPointsId String       @map("user_points_id")
-  action       PointsAction
-  points       Int
-  reason       String?      @db.VarChar(200)
-  relatedId    String?      @map("related_id")
-  createdAt    DateTime     @default(now()) @map("created_at")
-
-  userPoints UserPoints @relation(fields: [userPointsId], references: [id], onDelete: Cascade)
-
-  @@index([userPointsId, createdAt])
-  @@map("user_points_histories")
-}
-
-// 积分行为枚举
-enum PointsAction {
-  POST_CREATED // 发布帖子 +10
-  POST_DELETED // 删除帖子 -10
-  COMMENT_CREATED // 发布评论 +5
-  COMMENT_DELETED // 删除评论 -5
-  RECEIVED_LIKE // 获得点赞 +2
-  LIKE_REMOVED // 被取消点赞 -2
-  POST_HIGHLIGHTED // 帖子被加精 +50
-  DAILY_LOGIN // 每日登录 +1
-  CONTINUOUS_LOGIN // 连续登录奖励 +5
-  ADMIN_REWARD // 管理员奖励
-  ADMIN_PENALTY // 管理员扣除
-}
-
-// ============================================
-// 二手交易
-// ============================================
-model SecondhandItem {
-  id          String        @id @default(uuid())
-  title       String        @db.VarChar(200)
-  description String        @db.Text
-  price       Float
-  images      String[]
-  category    String        @db.VarChar(50)
-  condition   ItemCondition
-  status      ItemStatus    @default(AVAILABLE)
-  sellerId    String        @map("seller_id")
-  viewCount   Int           @default(0) @map("view_count")
-  location    String?       @db.VarChar(100)
-  contact     String        @db.VarChar(100)
-  isDeleted   Boolean       @default(false) @map("is_deleted")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-
-  seller User @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-
-  @@index([status, createdAt])
-  @@index([category])
-  @@index([sellerId])
-  @@map("secondhand_items")
-}
-
-enum ItemCondition {
-  NEW // 全新
-  LIKE_NEW // 几乎全新
-  GOOD // 良好
-  FAIR // 一般
-  POOR // 较差
-}
-
-enum ItemStatus {
-  AVAILABLE // 在售
-  RESERVED // 已预定
-  SOLD // 已售出
-}
-
-// ============================================
-// 学习资源
-// ============================================
-model StudyResource {
-  id            String       @id @default(uuid())
-  title         String       @db.VarChar(200)
-  description   String       @db.Text
-  category      String       @db.VarChar(50)
-  type          ResourceType
-  fileUrl       String?      @map("file_url") @db.VarChar(500)
-  link          String?      @db.VarChar(500)
-  authorId      String       @map("author_id")
-  tags          String[]
-  viewCount     Int          @default(0) @map("view_count")
-  downloadCount Int          @default(0) @map("download_count")
-  likeCount     Int          @default(0) @map("like_count")
-  isDeleted     Boolean      @default(false) @map("is_deleted")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
-
-  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
-
-  @@index([category, createdAt])
-  @@index([type])
-  @@index([authorId])
-  @@map("study_resources")
-}
-
-enum ResourceType {
-  DOCUMENT // 文档
-  VIDEO // 视频
-  LINK // 链接
-  CODE // 代码
-  OTHER // 其他
 }
 
 // ============================================

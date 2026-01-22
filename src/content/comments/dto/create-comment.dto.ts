@@ -3,11 +3,10 @@ import {
   IsOptional,
   MinLength,
   MaxLength,
-  IsUUID,
 } from 'class-validator';
 
 export class CreateCommentDto {
-  @IsUUID()
+  @IsString()
   postId: string;
 
   @IsString()
@@ -16,6 +15,6 @@ export class CreateCommentDto {
   content: string;
 
   @IsOptional()
-  @IsUUID()
+  @IsString()
   parentId?: string;
 }

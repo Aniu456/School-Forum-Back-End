@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Headers } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterAdminDto } from './dto/register-admin.dto';
@@ -53,14 +53,14 @@ export class AuthController {
   }
 
   /**
-   * 登出（可选实现）
+   * 登出 - 将 token 加入黑名单
    * POST /auth/logout
    */
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout() {
-    // Token 黑名单实现（可选）
-    return { message: '登出成功' };
+  async logout(@Headers('authorization') authHeader?: string) {
+    const token = authHeader?.replace('Bearer ', '') || '';
+    return this.authService.logout(token);
   }
 
   /**

@@ -10,6 +10,7 @@ import { PrismaService } from '../../core/prisma/prisma.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { ChatGateway } from './chat.gateway';
 
 @Injectable()
 export class ConversationsService {
@@ -17,6 +18,8 @@ export class ConversationsService {
         private prisma: PrismaService,
         @Inject(forwardRef(() => NotificationsService))
         private notificationsService: NotificationsService,
+        @Inject(forwardRef(() => ChatGateway))
+        private chatGateway: ChatGateway,
     ) { }
 
     /**
@@ -347,9 +350,28 @@ export class ConversationsService {
         // 发送私信通知给对方
         try {
             const conversation = await this.getConversation(conversationId, userId);
+            
             if (conversation.otherUser) {
+                const otherUserId = conversation.otherUser.id;
+                
+                // 1. 推送实时消息 (WebSocket)
+                this.chatGateway.server
+                    .to(`user:${otherUserId}`)
+                    .emit('chat:message_created', {
+                        conversationId,
+                        message,
+                        sender: message.sender,
+                    });
+
+                // 2. 更新对方的未读数
+                const unreadData = await this.getUnreadCount(otherUserId);
+                this.chatGateway.server
+                    .to(`user:${otherUserId}`)
+                    .emit('chat:unread_count', unreadData);
+
+                // 3. 发送系统通知 (Notification Center)
                 await this.notificationsService.create({
-                    userId: conversation.otherUser.id,
+                    userId: otherUserId,
                     type: 'SYSTEM',
                     senderId: userId,
                     content: `给你发了私信: ${sendDto.content.substring(0, 30)}${sendDto.content.length > 30 ? '...' : ''}`,

@@ -10,7 +10,6 @@ import { PrismaService } from '../../core/prisma/prisma.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { Role } from '@prisma/client';
 import { NotificationsService } from '../../notifications/notifications.service';
-import { PointsService } from '../../users/points.service';
 
 @Injectable()
 export class CommentsService {
@@ -18,9 +17,7 @@ export class CommentsService {
     private prisma: PrismaService,
     @Inject(forwardRef(() => NotificationsService))
     private notificationsService: NotificationsService,
-    @Inject(forwardRef(() => PointsService))
-    private pointsService: PointsService,
-  ) { }
+  ) {}
 
   /**
    * 创建评论或回复
@@ -134,11 +131,20 @@ export class CommentsService {
       console.error('Failed to send comment notification:', error);
     }
 
-    // 评论加积分
-    try {
-      await this.pointsService.addPoints(userId, 'COMMENT_CREATED', comment.id);
-    } catch (error) {
-      console.error('Failed to add points for comment creation:', error);
+    // 🚀 广播事件 (实时更新)
+    const broadcastPayload = {
+      postId,
+      commentId: comment.id,
+      parentId,
+      author: comment.author,
+      content,
+      createdAt: comment.createdAt,
+    };
+
+    if (parentId) {
+      this.notificationsService.broadcastReply(broadcastPayload);
+    } else {
+      this.notificationsService.broadcastComment(broadcastPayload);
     }
 
     return {
@@ -156,6 +162,7 @@ export class CommentsService {
     page: number = 1,
     limit: number = 20,
     sortBy: 'createdAt' | 'likeCount' = 'createdAt',
+    previewLimit: number = 3,
   ) {
     // 检查帖子是否存在
     const post = await this.prisma.post.findUnique({
@@ -279,11 +286,13 @@ export class CommentsService {
     // 组合数据
     const commentsWithDetails = comments.map((comment) => {
       const replies = repliesByParentId.get(comment.id) || [];
+      const replyCount = comment._count.replies;
       return {
         ...comment,
         likeCount: commentLikeCountMap.get(comment.id) || 0,
-        replyCount: comment._count.replies,
-        replies: replies.slice(0, 3), // 只取前3条
+        replyCount,
+        hasMoreReplies: replyCount > previewLimit,
+        replies: replies.slice(0, previewLimit), // 只取前 previewLimit 条
         _count: undefined,
       };
     });
@@ -318,12 +327,20 @@ export class CommentsService {
 
     const skip = (page - 1) * limit;
 
+    // 直接从 Comment 取 likeCount，避免 N+1 查询
     const [replies, total] = await Promise.all([
       this.prisma.comment.findMany({
         where: {
           parentId: commentId,
         },
-        include: {
+        select: {
+          id: true,
+          content: true,
+          postId: true,
+          parentId: true,
+          likeCount: true,
+          createdAt: true,
+          updatedAt: true,
           author: {
             select: {
               id: true,
@@ -346,28 +363,13 @@ export class CommentsService {
       }),
     ]);
 
-    // 为每条回复获取点赞数
-    const repliesWithLikes = await Promise.all(
-      replies.map(async (reply) => {
-        const likeCount = await this.prisma.like.count({
-          where: {
-            targetId: reply.id,
-            targetType: 'COMMENT',
-          },
-        });
-        return {
-          ...reply,
-          likeCount,
-        };
-      }),
-    );
-
     return {
-      data: repliesWithLikes,
+      data: replies,
       meta: {
         page,
         limit,
         total,
+        totalPages: Math.ceil(total / limit),
       },
     };
   }
@@ -396,19 +398,18 @@ export class CommentsService {
         where: { id: commentId },
       });
 
-      // 减少帖子评论数
-      await tx.post.update({
+      // 减少帖子评论数（防止变成负数）
+      const post = await tx.post.findUnique({
         where: { id: comment.postId },
-        data: { commentCount: { decrement: 1 } },
+        select: { commentCount: true },
       });
+      if (post && post.commentCount > 0) {
+        await tx.post.update({
+          where: { id: comment.postId },
+          data: { commentCount: { decrement: 1 } },
+        });
+      }
     });
-
-    // 删评论扣积分
-    try {
-      await this.pointsService.addPoints(comment.authorId, 'COMMENT_DELETED', commentId);
-    } catch (error) {
-      console.error('Failed to deduct points for comment deletion:', error);
-    }
 
     return {
       message: '评论删除成功',

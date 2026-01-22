@@ -2,7 +2,6 @@ import {
   Controller,
   Post,
   Get,
-  Patch,
   Delete,
   Body,
   Param,
@@ -13,80 +12,14 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { FavoritesService } from './favorites.service';
-import { CreateFavoriteDto } from './dto/create-favorite.dto';
-import { CreateFolderDto, UpdateFolderDto } from './dto/create-folder.dto';
 import { CurrentUser } from '../../../core/common/decorators/current-user.decorator';
 
+/**
+ * 收藏控制器 - 简化版（无文件夹功能）
+ */
 @Controller('favorites')
 export class FavoritesController {
-  constructor(private readonly favoritesService: FavoritesService) { }
-
-  /**
-   * 创建收藏夹
-   * POST /favorites/folders
-   */
-  @Post('folders')
-  async createFolder(
-    @CurrentUser('id') userId: string,
-    @Body() createFolderDto: CreateFolderDto,
-  ) {
-    return this.favoritesService.createFolder(userId, createFolderDto);
-  }
-
-  /**
-   * 获取收藏夹列表
-   * GET /favorites/folders
-   */
-  @Get('folders')
-  async getFolders(
-    @CurrentUser('id') userId: string,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
-  ) {
-    return this.favoritesService.getFolders(userId, page, limit);
-  }
-
-  /**
-   * 获取单个收藏夹详情
-   * GET /favorites/folders/:id
-   */
-  @Get('folders/:id')
-  async getFolder(
-    @CurrentUser('id') userId: string,
-    @Param('id') folderId: string,
-  ) {
-    return this.favoritesService.getFolder(userId, folderId);
-  }
-
-  /**
-   * 更新收藏夹
-   * PATCH /favorites/folders/:id
-   */
-  @Patch('folders/:id')
-  async updateFolder(
-    @CurrentUser('id') userId: string,
-    @Param('id') folderId: string,
-    @Body() updateFolderDto: UpdateFolderDto,
-  ) {
-    return this.favoritesService.updateFolder(
-      userId,
-      folderId,
-      updateFolderDto,
-    );
-  }
-
-  /**
-   * 删除收藏夹
-   * DELETE /favorites/folders/:id
-   */
-  @Delete('folders/:id')
-  @HttpCode(HttpStatus.OK)
-  async deleteFolder(
-    @CurrentUser('id') userId: string,
-    @Param('id') folderId: string,
-  ) {
-    return this.favoritesService.deleteFolder(userId, folderId);
-  }
+  constructor(private readonly favoritesService: FavoritesService) {}
 
   /**
    * 收藏帖子
@@ -95,9 +28,22 @@ export class FavoritesController {
   @Post()
   async addFavorite(
     @CurrentUser('id') userId: string,
-    @Body() createFavoriteDto: CreateFavoriteDto,
+    @Body() dto: { postId: string; note?: string },
   ) {
-    return this.favoritesService.addFavorite(userId, createFavoriteDto);
+    return this.favoritesService.addFavorite(userId, dto);
+  }
+
+  /**
+   * 切换收藏状态
+   * POST /favorites/toggle
+   */
+  @Post('toggle')
+  @HttpCode(HttpStatus.OK)
+  async toggleFavorite(
+    @CurrentUser('id') userId: string,
+    @Body() dto: { postId: string; note?: string },
+  ) {
+    return this.favoritesService.toggleFavorite(userId, dto.postId, dto.note);
   }
 
   /**
@@ -114,16 +60,41 @@ export class FavoritesController {
   }
 
   /**
-   * 获取收藏夹中的帖子列表
-   * GET /favorites/folders/:folderId/posts
+   * 通过帖子ID取消收藏
+   * DELETE /favorites/post/:postId
    */
-  @Get('folders/:folderId/posts')
+  @Delete('post/:postId')
+  @HttpCode(HttpStatus.OK)
+  async removeFavoriteByPostId(
+    @CurrentUser('id') userId: string,
+    @Param('postId') postId: string,
+  ) {
+    return this.favoritesService.removeFavoriteByPostId(userId, postId);
+  }
+
+  /**
+   * 获取用户的收藏列表
+   * GET /favorites
+   */
+  @Get()
   async getFavorites(
     @CurrentUser('id') userId: string,
-    @Param('folderId') folderId: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
-    return this.favoritesService.getFavorites(userId, folderId, page, limit);
+    return this.favoritesService.getFavorites(userId, page, limit);
+  }
+
+  /**
+   * 检查是否收藏了某帖子
+   * GET /favorites/check/:postId
+   */
+  @Get('check/:postId')
+  async checkFavorite(
+    @CurrentUser('id') userId: string,
+    @Param('postId') postId: string,
+  ) {
+    const isFavorited = await this.favoritesService.isFavorited(userId, postId);
+    return { isFavorited };
   }
 }

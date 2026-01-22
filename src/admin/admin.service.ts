@@ -1,16 +1,72 @@
-import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { PointsService } from '../users/points.service';
 
 @Injectable()
 export class AdminService {
     constructor(
         private readonly prisma: PrismaService,
-        @Inject(forwardRef(() => PointsService))
-        private readonly pointsService: PointsService,
-    ) { }
+    ) {}
+
+    /**
+     * 通用方法：查找用户或抛出异常
+     * 避免重复的 findUnique + 检查逻辑
+     */
+    private async findUserOrThrow(
+        userId: string,
+        select?: Record<string, any>,
+    ) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select,
+        });
+
+        if (!user) {
+            throw new NotFoundException('用户不存在');
+        }
+
+        return user;
+    }
+
+    /**
+     * 通用方法：查找帖子或抛出异常
+     */
+    private async findPostOrThrow(postId: string) {
+        const post = await this.prisma.post.findUnique({
+            where: { id: postId },
+        });
+
+        if (!post) {
+            throw new NotFoundException('帖子不存在');
+        }
+
+        return post;
+    }
+
+    /**
+     * 通用方法：查找评论或抛出异常
+     */
+    private async findCommentOrThrow(commentId: string) {
+        const comment = await this.prisma.comment.findUnique({
+            where: { id: commentId },
+        });
+
+        if (!comment) {
+            throw new NotFoundException('评论不存在');
+        }
+
+        return comment;
+    }
+
+    /**
+     * 通用方法：检查用户是否为管理员
+     */
+    private checkNotAdmin(user: { role: Role }) {
+        if (user.role === Role.ADMIN) {
+            throw new ForbiddenException('不能对管理员执行此操作');
+        }
+    }
 
     /**
      * 获取用户列表（管理员），排除当前管理员自己
@@ -92,15 +148,8 @@ export class AdminService {
      * 封禁用户（管理员）
      */
     async banUser(userId: string) {
-        const user = await this.prisma.user.findUnique({ where: { id: userId } });
-
-        if (!user) {
-            throw new NotFoundException('用户不存在');
-        }
-
-        if (user.role === Role.ADMIN) {
-            throw new ForbiddenException('不能封禁管理员');
-        }
+        const user = await this.findUserOrThrow(userId, { role: true });
+        this.checkNotAdmin(user);
 
         const updatedUser = await this.prisma.user.update({
             where: { id: userId },
@@ -114,11 +163,7 @@ export class AdminService {
      * 解封用户（管理员）
      */
     async unbanUser(userId: string) {
-        const user = await this.prisma.user.findUnique({ where: { id: userId } });
-
-        if (!user) {
-            throw new NotFoundException('用户不存在');
-        }
+        await this.findUserOrThrow(userId);
 
         const updatedUser = await this.prisma.user.update({
             where: { id: userId },
@@ -135,17 +180,8 @@ export class AdminService {
      * 删除用户（管理员）
      */
     async deleteUser(userId: string) {
-        const user = await this.prisma.user.findUnique({
-            where: { id: userId },
-        });
-
-        if (!user) {
-            throw new NotFoundException('用户不存在');
-        }
-
-        if (user.role === Role.ADMIN) {
-            throw new ForbiddenException('不能删除管理员用户');
-        }
+        const user = await this.findUserOrThrow(userId, { role: true });
+        this.checkNotAdmin(user);
 
         await this.prisma.user.delete({
             where: { id: userId },
@@ -214,11 +250,7 @@ export class AdminService {
      * 重置用户密码
      */
     async resetUserPassword(userId: string, newPassword: string) {
-        const user = await this.prisma.user.findUnique({ where: { id: userId } });
-
-        if (!user) {
-            throw new NotFoundException('用户不存在');
-        }
+        await this.findUserOrThrow(userId);
 
         const hashedPassword = await bcrypt.hash(newPassword, 10);
 
@@ -234,13 +266,8 @@ export class AdminService {
      * 修改用户角色（不能修改超级管理员）
      */
     async updateUserRole(userId: string, role: Role) {
-        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        await this.findUserOrThrow(userId);
 
-        if (!user) {
-            throw new NotFoundException('用户不存在');
-        }
-
-        // 为简单起见，仅禁止将自己改成 ADMIN，可以按需再细化
         const updatedUser = await this.prisma.user.update({
             where: { id: userId },
             data: { role },
@@ -250,28 +277,46 @@ export class AdminService {
     }
 
     /**
-     * 查看用户登录历史
+     * 查看用户登录历史 - DISABLED
+     * UserLoginHistory table has been removed to simplify the schema.
+     * Only the last login info (lastLoginAt, lastLoginIp) is kept in the User table.
      */
     async getUserLoginHistory(userId: string, page: number, limit: number) {
-        const skip = (page - 1) * limit;
+        // Return the last login info from User table instead
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                lastLoginAt: true,
+                lastLoginIp: true,
+            },
+        });
 
-        const [histories, total] = await Promise.all([
-            this.prisma.userLoginHistory.findMany({
-                where: { userId },
-                orderBy: { loginTime: 'desc' },
-                skip,
-                take: limit,
-            }),
-            this.prisma.userLoginHistory.count({ where: { userId } }),
-        ]);
+        if (!user) {
+            return {
+                data: [],
+                meta: { page, limit, total: 0, totalPages: 0 },
+            };
+        }
+
+        // Return only the most recent login as a single record
+        const data = user.lastLoginAt ? [{
+            id: user.id,
+            userId: user.id,
+            loginIp: user.lastLoginIp || 'Unknown',
+            loginTime: user.lastLoginAt,
+            userAgent: null,
+            device: null,
+            location: null,
+        }] : [];
 
         return {
-            data: histories,
+            data,
             meta: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit),
+                page: 1,
+                limit: 1,
+                total: data.length,
+                totalPages: 1,
             },
         };
     }
@@ -280,11 +325,7 @@ export class AdminService {
      * 禁止/允许用户发帖
      */
     async togglePostPermission(userId: string, canPost: boolean) {
-        const user = await this.prisma.user.findUnique({ where: { id: userId } });
-
-        if (!user) {
-            throw new NotFoundException('用户不存在');
-        }
+        await this.findUserOrThrow(userId);
 
         const updatedUser = await this.prisma.user.update({
             where: { id: userId },
@@ -301,11 +342,7 @@ export class AdminService {
      * 禁止/允许用户评论
      */
     async toggleCommentPermission(userId: string, canComment: boolean) {
-        const user = await this.prisma.user.findUnique({ where: { id: userId } });
-
-        if (!user) {
-            throw new NotFoundException('用户不存在');
-        }
+        await this.findUserOrThrow(userId);
 
         const updatedUser = await this.prisma.user.update({
             where: { id: userId },
@@ -529,11 +566,7 @@ export class AdminService {
      * 置顶帖子
      */
     async pinPost(postId: string) {
-        const post = await this.prisma.post.findUnique({ where: { id: postId } });
-
-        if (!post) {
-            throw new NotFoundException('帖子不存在');
-        }
+        await this.findPostOrThrow(postId);
 
         const updatedPost = await this.prisma.post.update({
             where: { id: postId },
@@ -547,11 +580,7 @@ export class AdminService {
      * 取消置顶帖子
      */
     async unpinPost(postId: string) {
-        const post = await this.prisma.post.findUnique({ where: { id: postId } });
-
-        if (!post) {
-            throw new NotFoundException('帖子不存在');
-        }
+        await this.findPostOrThrow(postId);
 
         const updatedPost = await this.prisma.post.update({
             where: { id: postId },
@@ -565,23 +594,12 @@ export class AdminService {
      * 加精华
      */
     async highlightPost(postId: string) {
-        const post = await this.prisma.post.findUnique({ where: { id: postId } });
-
-        if (!post) {
-            throw new NotFoundException('帖子不存在');
-        }
+        await this.findPostOrThrow(postId);
 
         const updatedPost = await this.prisma.post.update({
             where: { id: postId },
             data: { isHighlighted: true, highlightedAt: new Date() },
         });
-
-        // 加精奖励积分
-        try {
-            await this.pointsService.addPoints(post.authorId, 'POST_HIGHLIGHTED', postId);
-        } catch (error) {
-            console.error('Failed to add points for post highlight:', error);
-        }
 
         return { message: '帖子已加精', post: updatedPost };
     }
@@ -590,11 +608,7 @@ export class AdminService {
      * 取消精华
      */
     async unhighlightPost(postId: string) {
-        const post = await this.prisma.post.findUnique({ where: { id: postId } });
-
-        if (!post) {
-            throw new NotFoundException('帖子不存在');
-        }
+        await this.findPostOrThrow(postId);
 
         const updatedPost = await this.prisma.post.update({
             where: { id: postId },
@@ -608,11 +622,7 @@ export class AdminService {
      * 锁定帖子（禁止评论）
      */
     async lockPost(postId: string) {
-        const post = await this.prisma.post.findUnique({ where: { id: postId } });
-
-        if (!post) {
-            throw new NotFoundException('帖子不存在');
-        }
+        await this.findPostOrThrow(postId);
 
         const updatedPost = await this.prisma.post.update({
             where: { id: postId },
@@ -626,11 +636,7 @@ export class AdminService {
      * 解锁帖子
      */
     async unlockPost(postId: string) {
-        const post = await this.prisma.post.findUnique({ where: { id: postId } });
-
-        if (!post) {
-            throw new NotFoundException('帖子不存在');
-        }
+        await this.findPostOrThrow(postId);
 
         const updatedPost = await this.prisma.post.update({
             where: { id: postId },
@@ -644,11 +650,7 @@ export class AdminService {
      * 隐藏帖子
      */
     async hidePost(postId: string) {
-        const post = await this.prisma.post.findUnique({ where: { id: postId } });
-
-        if (!post) {
-            throw new NotFoundException('帖子不存在');
-        }
+        await this.findPostOrThrow(postId);
 
         const updatedPost = await this.prisma.post.update({
             where: { id: postId },
@@ -662,11 +664,7 @@ export class AdminService {
      * 取消隐藏帖子
      */
     async unhidePost(postId: string) {
-        const post = await this.prisma.post.findUnique({ where: { id: postId } });
-
-        if (!post) {
-            throw new NotFoundException('帖子不存在');
-        }
+        await this.findPostOrThrow(postId);
 
         const updatedPost = await this.prisma.post.update({
             where: { id: postId },

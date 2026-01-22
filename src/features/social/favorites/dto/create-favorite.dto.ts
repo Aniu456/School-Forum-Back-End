@@ -1,10 +1,11 @@
-import { IsUUID, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateFavoriteDto {
-  @IsUUID()
+  @IsString()
   postId: string;
 
-  @IsUUID()
+  @IsOptional()
+  @IsString()
   folderId: string;
 
   @IsOptional()

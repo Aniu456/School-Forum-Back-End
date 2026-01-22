@@ -6,9 +6,9 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import { CacheClear, Cacheable } from '../../core/cache/cache.decorator';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { RealtimeService } from '../../notifications/realtime.service';
-import { PointsService } from '../../users/points.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 
@@ -18,8 +18,6 @@ export class PostsService {
     private prisma: PrismaService,
     @Inject(forwardRef(() => RealtimeService))
     private realtimeService: RealtimeService,
-    @Inject(forwardRef(() => PointsService))
-    private pointsService: PointsService,
   ) {}
 
   /**
@@ -48,13 +46,6 @@ export class PostsService {
 
     void this.realtimeService.broadcastNewPost(post.id, userId);
 
-    // 发帖加积分
-    try {
-      await this.pointsService.addPoints(userId, 'POST_CREATED', post.id);
-    } catch (error) {
-      console.error('Failed to add points for post creation:', error);
-    }
-
     return {
       ...post,
       likeCount: 0,
@@ -66,6 +57,7 @@ export class PostsService {
    * 获取帖子列表（分页、排序、筛选）
    * 🚀 已优化：修复 N+1 查询问题
    */
+  @Cacheable({ keyPrefix: 'posts:list', ttl: 300 })
   async findAll(
     page: number = 1,
     limit: number = 20,
@@ -170,6 +162,7 @@ export class PostsService {
   /**
    * 获取帖子详情
    */
+  @Cacheable({ keyPrefix: 'post', ttl: 600 })
   async findOne(postId: string, userId?: string) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
@@ -245,6 +238,7 @@ export class PostsService {
   /**
    * 更新帖子
    */
+  @CacheClear({ patterns: ['posts:*', 'post:*'] })
   async update(postId: string, userId: string, updatePostDto: UpdatePostDto) {
     // 检查帖子是否存在
     const post = await this.prisma.post.findUnique({
@@ -276,12 +270,16 @@ export class PostsService {
       },
     });
 
+    // 🚀 广播更新事件
+    this.realtimeService.broadcastPostUpdate(postId);
+
     return updatedPost;
   }
 
   /**
    * 删除帖子（软删除）
    */
+  @CacheClear({ patterns: ['posts:*', 'post:*'] })
   async remove(postId: string, userId: string, userRole: Role) {
     // 检查帖子是否存在
     const post = await this.prisma.post.findUnique({
@@ -302,12 +300,8 @@ export class PostsService {
       where: { id: postId },
     });
 
-    // 删帖扣积分
-    try {
-      await this.pointsService.addPoints(post.authorId, 'POST_DELETED', postId);
-    } catch (error) {
-      console.error('Failed to deduct points for post deletion:', error);
-    }
+    // 🚀 广播删除事件
+    this.realtimeService.broadcastPostDelete(postId);
 
     return { message: '帖子删除成功' };
   }

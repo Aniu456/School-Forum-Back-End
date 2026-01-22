@@ -8,7 +8,7 @@ import {
     MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger, UseGuards, Inject, forwardRef } from '@nestjs/common';
 import { WsJwtGuard } from '../../core/common/guards/ws-jwt.guard';
 import { ConversationsService } from './conversations.service';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -28,7 +28,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly logger = new Logger(ChatGateway.name);
     private readonly userSockets = new Map<string, Set<string>>(); // userId -> Set<socketId>
 
-    constructor(private readonly conversationsService: ConversationsService) { }
+    constructor(
+        @Inject(forwardRef(() => ConversationsService))
+        private readonly conversationsService: ConversationsService
+    ) { }
 
     /**
      * 处理客户端连接
@@ -97,11 +100,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 sendDto,
             );
 
-            // 获取会话详情（找到对方用户）
-            const conversation = await this.conversationsService.getConversation(
-                conversationId,
-                userId,
-            );
+
 
             // 向发送者确认消息已发送
             client.emit('chat:message_sent', {
@@ -109,17 +108,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 message,
             });
 
-            // 向对方用户推送新消息
-            if (conversation.otherUser) {
-                this.server.to(`user:${conversation.otherUser.id}`).emit('chat:message_created', {
-                    conversationId,
-                    message,
-                    sender: message.sender,
-                });
-
-                // 更新对方的未读数
-                this.updateUnreadCount(conversation.otherUser.id);
-            }
+            // 注意：向对方用户推送新消息的逻辑已移动到 ConversationsService
+            // 确保无论是通过 WebSocket 还是 REST API 发送消息，对方都能收到实时推送
 
             this.logger.log(
                 `Message sent: ${message.id} in conversation ${conversationId}`,

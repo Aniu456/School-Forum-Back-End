@@ -22,6 +22,34 @@ export class NotificationEmitterService {
     }
   }
 
+  emitComment(data: any) {
+    this.notificationsGateway.broadcastComment(data);
+  }
+
+  emitReply(data: any) {
+    this.notificationsGateway.broadcastReply(data);
+  }
+
+  emitLike(data: any) {
+    this.notificationsGateway.broadcastLike(data);
+  }
+
+  emitFollow(data: any) {
+    this.notificationsGateway.broadcastFollow(data);
+  }
+
+  emitPostNew(data: any) {
+    this.notificationsGateway.broadcastPostNew(data);
+  }
+
+  emitPostUpdate(data: any) {
+    this.notificationsGateway.broadcastPostUpdate(data);
+  }
+
+  emitPostDelete(data: any) {
+    this.notificationsGateway.broadcastPostDelete(data);
+  }
+
   /**
    * 检查用户是否在线
    */

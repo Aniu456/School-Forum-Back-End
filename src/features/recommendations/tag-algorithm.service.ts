@@ -12,6 +12,10 @@ export interface TagStats {
     score: number;
 }
 
+/**
+ * 标签算法服务
+ * 注意：Topic 模型已从 schema 中移除，相关功能已调整
+ */
 @Injectable()
 export class TagAlgorithmService {
     private readonly logger = new Logger(TagAlgorithmService.name);
@@ -46,7 +50,7 @@ export class TagAlgorithmService {
             const posts = await this.prisma.post.findMany({
                 where: {
                     createdAt: {
-                        gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 最近7天
+                        gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
                     },
                 },
                 select: {
@@ -92,31 +96,9 @@ export class TagAlgorithmService {
                 60 * 60,
             );
 
-            await this.updateTopicTable(tagStats);
-
             this.logger.log(`热门标签更新完成，共 ${tagStats.length} 个标签`);
         } catch (error) {
             this.logger.error('更新热门标签失败', error);
-        }
-    }
-
-    /**
-     * 更新话题表
-     */
-    private async updateTopicTable(tagStats: TagStats[]) {
-        for (const stats of tagStats) {
-            await this.prisma.topic.upsert({
-                where: { name: stats.tag },
-                create: {
-                    name: stats.tag,
-                    postCount: stats.postCount,
-                    isHot: stats.score > 100,
-                },
-                update: {
-                    postCount: stats.postCount,
-                    isHot: stats.score > 100,
-                },
-            });
         }
     }
 
@@ -228,25 +210,34 @@ export class TagAlgorithmService {
     }
 
     /**
-     * 搜索标签
+     * 搜索标签（从帖子标签中搜索）
      */
     async searchTags(query: string, limit: number = 10): Promise<string[]> {
-        const topics = await this.prisma.topic.findMany({
-            where: {
-                name: {
-                    contains: query,
-                    mode: 'insensitive',
-                },
+        // 从最近帖子中查找匹配的标签
+        const posts = await this.prisma.post.findMany({
+            select: {
+                tags: true,
             },
             orderBy: {
-                postCount: 'desc',
+                createdAt: 'desc',
             },
-            take: limit,
-            select: {
-                name: true,
-            },
+            take: 500,
         });
 
-        return topics.map((t) => t.name);
+        const tagSet = new Set<string>();
+        const matchingTags: string[] = [];
+
+        for (const post of posts) {
+            for (const tag of post.tags) {
+                if (!tagSet.has(tag) && tag.toLowerCase().includes(query.toLowerCase())) {
+                    tagSet.add(tag);
+                    matchingTags.push(tag);
+                    if (matchingTags.length >= limit) break;
+                }
+            }
+            if (matchingTags.length >= limit) break;
+        }
+
+        return matchingTags;
     }
 }

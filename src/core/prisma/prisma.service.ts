@@ -43,18 +43,6 @@ export class PrismaService
     return (this as unknown as { favorite: unknown }).favorite as any;
   }
 
-  get folder() {
-    return (this as unknown as { folder: unknown }).folder as any;
-  }
-
-  get postScore() {
-    return (this as unknown as { postScore: unknown }).postScore as any;
-  }
-
-  get topic() {
-    return (this as unknown as { topic: unknown }).topic as any;
-  }
-
   get conversation() {
     return (this as unknown as { conversation: unknown }).conversation as any;
   }
@@ -68,3 +56,4 @@ export class PrismaService
     return (this as unknown as { message: unknown }).message as any;
   }
 }
+

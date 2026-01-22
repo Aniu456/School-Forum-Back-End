@@ -57,14 +57,27 @@ export class RealtimeService {
      * 广播新帖子给所有在线用户
      */
     private broadcastPostToAll(post: any) {
-        this.gateway.server.emit('post:new', {
+        this.gateway.broadcastPostNew({
             id: post.id,
+            postId: post.id, // 兼容前端字段
             title: post.title,
             content: post.content.substring(0, 200),
             author: post.author,
             createdAt: post.createdAt,
             tags: post.tags,
         });
+    }
+
+    broadcastPostUpdate(postId: string) {
+        this.gateway.broadcastPostUpdate({ postId });
+    }
+
+    broadcastPostDelete(postId: string) {
+        this.gateway.broadcastPostDelete({ postId });
+    }
+
+    broadcastFollow(userId: string, followingId: string) {
+        this.gateway.broadcastFollow({ userId, followingId });
     }
 
     /**

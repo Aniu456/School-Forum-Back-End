@@ -7,7 +7,6 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
-  ParseUUIDPipe,
   Post,
   Query,
 } from '@nestjs/common';
@@ -26,7 +25,7 @@ export class FollowsController {
   @Post(':id/follow')
   @HttpCode(HttpStatus.OK)
   async follow(
-    @Param('id', ParseUUIDPipe) followingId: string,
+    @Param('id') followingId: string,
     @CurrentUser('id') userId: string,
   ) {
     const createFollowDto: CreateFollowDto = { followingId };
@@ -40,7 +39,7 @@ export class FollowsController {
   @Delete(':id/follow')
   @HttpCode(HttpStatus.OK)
   async unfollow(
-    @Param('id', ParseUUIDPipe) followingId: string,
+    @Param('id') followingId: string,
     @CurrentUser('id') userId: string,
   ) {
     return this.followsService.unfollow(userId, followingId);
@@ -52,7 +51,7 @@ export class FollowsController {
    */
   @Get(':id/follow/status')
   async getFollowStatus(
-    @Param('id', ParseUUIDPipe) targetUserId: string,
+    @Param('id') targetUserId: string,
     @CurrentUser('id') userId: string,
   ) {
     const isFollowing = await this.followsService.isFollowing(
@@ -68,7 +67,7 @@ export class FollowsController {
    */
   @Get(':id/following')
   async getFollowing(
-    @Param('id', ParseUUIDPipe) userId: string,
+    @Param('id') userId: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
@@ -81,7 +80,7 @@ export class FollowsController {
    */
   @Get(':id/followers')
   async getFollowers(
-    @Param('id', ParseUUIDPipe) userId: string,
+    @Param('id') userId: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {

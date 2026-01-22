@@ -1,0 +1,54 @@
+# 依赖
+node_modules/
+npm-debug.log
+pnpm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# 测试
+coverage/
+.nyc_output/
+test/
+
+# 构建产物（会在容器内重新构建）
+dist/
+build/
+
+# 环境配置
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# 文档
+*.md
+!README.md
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# 其他
+.prettierrc
+.eslintrc.js
+.editorconfig
+uploads/
+logs/
+*.log
+
+# Prisma相关（保留schema，migrations需要）
+# 注意：不要忽略prisma目录
