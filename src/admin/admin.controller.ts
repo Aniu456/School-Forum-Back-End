@@ -37,6 +37,7 @@ export class AdminController {
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
     @Query('role') role?: Role,
     @Query('isBanned') isBanned?: string,
+    @Query('keyword') keyword?: string,
   ) {
     // 转换 isBanned 参数
     let isBannedBool: boolean | undefined;
@@ -46,7 +47,7 @@ export class AdminController {
       isBannedBool = false;
     }
 
-    return this.adminService.getUsers(currentUserId, page, limit, role, isBannedBool);
+    return this.adminService.getUsers(currentUserId, page, limit, role, isBannedBool, keyword);
   }
 
   /**
@@ -166,7 +167,7 @@ export class AdminController {
     @Param('id') userId: string,
     @Body() dto: ToggleUserPermissionDto,
   ) {
-    return this.adminService.togglePostPermission(userId, dto.canPost ?? true);
+    return this.adminService.togglePostPermission(userId, dto.canPost);
   }
 
   /**
@@ -180,10 +181,7 @@ export class AdminController {
     @Param('id') userId: string,
     @Body() dto: ToggleUserPermissionDto,
   ) {
-    return this.adminService.toggleCommentPermission(
-      userId,
-      dto.canComment ?? true,
-    );
+    return this.adminService.toggleCommentPermission(userId, dto.canComment);
   }
 
   // ============================================

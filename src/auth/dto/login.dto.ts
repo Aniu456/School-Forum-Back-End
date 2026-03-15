@@ -1,9 +1,11 @@
-import { IsEmail, IsString } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class LoginDto {
-  @IsEmail()
-  email: string;
+  @IsString()
+  @IsNotEmpty()
+  email: string; // 可以是邮箱或用户名
 
   @IsString()
+  @IsNotEmpty()
   password: string;
 }

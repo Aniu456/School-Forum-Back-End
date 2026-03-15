@@ -1,11 +1,9 @@
-import { IsBoolean, IsOptional } from 'class-validator';
+import { IsBoolean } from 'class-validator';
 
 export class ToggleUserPermissionDto {
     @IsBoolean()
-    @IsOptional()
-    canPost?: boolean;
+    canPost: boolean;
 
     @IsBoolean()
-    @IsOptional()
-    canComment?: boolean;
+    canComment: boolean;
 }

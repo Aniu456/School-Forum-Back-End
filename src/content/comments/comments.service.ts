@@ -23,6 +23,16 @@ export class CommentsService {
    * 创建评论或回复
    */
   async create(userId: string, createCommentDto: CreateCommentDto) {
+    // 🛡️ 检查用户是否有评论权限
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { canComment: true },
+    });
+
+    if (!user?.canComment) {
+      throw new ForbiddenException('您已被禁止评论');
+    }
+
     const { postId, content, parentId } = createCommentDto;
 
     // 检查帖子是否存在
@@ -376,6 +386,7 @@ export class CommentsService {
 
   /**
    * 删除评论（软删除）
+   * 🛡️ 修复：删除父评论时统计子回复数量，确保 commentCount 准确
    */
   async remove(commentId: string, userId: string, userRole: Role) {
     // 检查评论是否存在
@@ -392,8 +403,22 @@ export class CommentsService {
       throw new ForbiddenException('无权限删除此评论');
     }
 
-    // 物理删除评论
+    // 🛡️ 统计该评论及其所有子回复的数量
+    const childCount = await this.prisma.comment.count({
+      where: { parentId: commentId },
+    });
+    const totalDeleteCount = 1 + childCount; // 父评论 + 子回复
+
+    // 物理删除评论（级联删除子回复）
     await this.prisma.$transaction(async (tx) => {
+      // 先删除所有子回复
+      if (childCount > 0) {
+        await tx.comment.deleteMany({
+          where: { parentId: commentId },
+        });
+      }
+
+      // 再删除父评论
       await tx.comment.delete({
         where: { id: commentId },
       });
@@ -404,15 +429,17 @@ export class CommentsService {
         select: { commentCount: true },
       });
       if (post && post.commentCount > 0) {
+        const newCount = Math.max(0, post.commentCount - totalDeleteCount);
         await tx.post.update({
           where: { id: comment.postId },
-          data: { commentCount: { decrement: 1 } },
+          data: { commentCount: newCount },
         });
       }
     });
 
     return {
       message: '评论删除成功',
+      deletedCount: totalDeleteCount,
     };
   }
 }

@@ -24,6 +24,16 @@ export class PostsService {
    * 创建帖子
    */
   async create(userId: string, createPostDto: CreatePostDto) {
+    // 🛡️ 检查用户是否有发帖权限
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { canPost: true },
+    });
+
+    if (!user?.canPost) {
+      throw new ForbiddenException('您已被禁止发帖');
+    }
+
     const post = await this.prisma.post.create({
       data: {
         title: createPostDto.title,

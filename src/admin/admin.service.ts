@@ -204,20 +204,43 @@ export class AdminService {
             throw new NotFoundException('评论不存在');
         }
 
+        // 🛡️ 统计该评论及其所有子回复的数量
+        const childCount = await this.prisma.comment.count({
+            where: { parentId: commentId },
+        });
+        const totalDeleteCount = 1 + childCount;
+
         // 使用事务同步更新帖子评论数
         await this.prisma.$transaction(async (tx) => {
+            // 先删除所有子回复
+            if (childCount > 0) {
+                await tx.comment.deleteMany({
+                    where: { parentId: commentId },
+                });
+            }
+
+            // 再删除父评论
             await tx.comment.delete({
                 where: { id: commentId },
             });
 
-            await tx.post.update({
+            // 更新帖子评论数
+            const post = await tx.post.findUnique({
                 where: { id: comment.postId },
-                data: { commentCount: { decrement: 1 } },
+                select: { commentCount: true },
             });
+            if (post && post.commentCount > 0) {
+                const newCount = Math.max(0, post.commentCount - totalDeleteCount);
+                await tx.post.update({
+                    where: { id: comment.postId },
+                    data: { commentCount: newCount },
+                });
+            }
         });
 
         return {
             message: '评论删除成功',
+            deletedCount: totalDeleteCount,
         };
     }
 
@@ -688,6 +711,7 @@ export class AdminService {
 
     /**
      * 批量删除评论
+     * 🛡️ 修复：统计子回复数量，确保 commentCount 准确
      */
     async bulkDeleteComments(ids: string[]) {
         // 先获取所有要删除的评论及其所属帖子
@@ -700,32 +724,63 @@ export class AdminService {
             return { message: '没有找到要删除的评论' };
         }
 
-        // 统计每个帖子需要减少的评论数
+        // 🛡️ 统计每个选中评论的子回复数量
+        const childCounts = await this.prisma.comment.groupBy({
+            by: ['parentId'],
+            where: { parentId: { in: ids } },
+            _count: { id: true },
+        });
+
+        const childCountMap = new Map<string, number>();
+        childCounts.forEach(item => {
+            if (item.parentId) {
+                childCountMap.set(item.parentId, item._count.id);
+            }
+        });
+
+        // 统计每个帖子需要减少的评论数（父评论 + 子回复）
         const postCommentCounts = new Map<string, number>();
         comments.forEach(comment => {
             const count = postCommentCounts.get(comment.postId) || 0;
-            postCommentCounts.set(comment.postId, count + 1);
+            const childCount = childCountMap.get(comment.id) || 0;
+            postCommentCounts.set(comment.postId, count + 1 + childCount);
         });
 
         // 使用事务批量删除评论并更新计数
         await this.prisma.$transaction(async (tx) => {
-            // 删除评论
+            // 先删除所有子回复
+            await tx.comment.deleteMany({
+                where: { parentId: { in: ids } },
+            });
+
+            // 再删除选中的评论
             await tx.comment.deleteMany({
                 where: { id: { in: ids } },
             });
 
             // 更新各帖子的评论数
             const updatePromises = Array.from(postCommentCounts.entries()).map(
-                ([postId, decrementCount]) =>
-                    tx.post.update({
+                ([postId, decrementCount]) => {
+                    return tx.post.findUnique({
                         where: { id: postId },
-                        data: { commentCount: { decrement: decrementCount } },
-                    })
+                        select: { commentCount: true },
+                    }).then(post => {
+                        if (post && post.commentCount > 0) {
+                            const newCount = Math.max(0, post.commentCount - decrementCount);
+                            return tx.post.update({
+                                where: { id: postId },
+                                data: { commentCount: newCount },
+                            });
+                        }
+                        return null;
+                    });
+                }
             );
 
-            await Promise.all(updatePromises);
+            await Promise.all(updatePromises.filter(Boolean));
         });
 
-        return { message: `已删除 ${comments.length} 条评论` };
+        const totalDeleted = Array.from(postCommentCounts.values()).reduce((sum, count) => sum + count, 0);
+        return { message: `已删除 ${totalDeleted} 条评论（含子回复）` };
     }
 }

@@ -134,8 +134,9 @@ export class AnnouncementsService {
 
     /**
      * 获取公告详情
+     * 🛡️ 过滤未发布、隐藏、角色不匹配的公告
      */
-    async findOne(id: string) {
+    async findOne(id: string, userRole?: string) {
         const announcement = await this.prisma.announcement.findUnique({
             where: { id },
             include: {
@@ -150,6 +151,20 @@ export class AnnouncementsService {
         });
 
         if (!announcement) {
+            throw new NotFoundException('公告不存在');
+        }
+
+        // 🛡️ 可见性检查
+        if (!announcement.isPublished) {
+            throw new NotFoundException('公告不存在');
+        }
+
+        if (announcement.isHidden) {
+            throw new NotFoundException('公告不存在');
+        }
+
+        // 检查目标角色
+        if (announcement.targetRole && announcement.targetRole !== userRole) {
             throw new NotFoundException('公告不存在');
         }
 

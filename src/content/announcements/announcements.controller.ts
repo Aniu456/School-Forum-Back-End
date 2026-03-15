@@ -59,8 +59,11 @@ export class AnnouncementsController {
      */
     @Public()
     @Get(':id')
-    async findOne(@Param('id') id: string) {
-        return this.announcementsService.findOne(id);
+    async findOne(
+        @Param('id') id: string,
+        @CurrentUser('role') userRole?: Role,
+    ) {
+        return this.announcementsService.findOne(id, userRole);
     }
 
     /**
