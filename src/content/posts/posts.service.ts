@@ -106,6 +106,8 @@ export class PostsService {
           viewCount: true,
           isPinned: true,
           pinnedAt: true,
+          isHighlighted: true,
+          highlightedAt: true,
           createdAt: true,
           updatedAt: true,
           author: {
@@ -124,6 +126,7 @@ export class PostsService {
         },
         orderBy: [
           { isPinned: 'desc' }, // 置顶帖子优先
+          { isHighlighted: 'desc' }, // 精华次优
           { [sortBy]: order },
         ],
         skip,
@@ -166,6 +169,66 @@ export class PostsService {
         total,
         totalPages: Math.ceil(total / limit),
       },
+    };
+  }
+
+  /**
+   * 获取精华帖子列表（按加精时间倒序）
+   */
+  async findHighlighted(limit = 5) {
+    const posts = await this.prisma.post.findMany({
+      where: {
+        isHighlighted: true,
+        isHidden: false,
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        images: true,
+        tags: true,
+        viewCount: true,
+        isPinned: true,
+        pinnedAt: true,
+        isHighlighted: true,
+        highlightedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        author: {
+          select: {
+            id: true,
+            username: true,
+            nickname: true,
+            avatar: true,
+          },
+        },
+        _count: {
+          select: {
+            comments: true,
+          },
+        },
+      },
+      orderBy: [{ highlightedAt: 'desc' }, { createdAt: 'desc' }],
+      take: limit,
+    });
+
+    const postIds = posts.map((p) => p.id);
+    const likeCounts = await this.prisma.like.groupBy({
+      by: ['targetId'],
+      where: { targetId: { in: postIds }, targetType: 'POST' },
+      _count: { id: true },
+    });
+    const likeCountMap = new Map(
+      likeCounts.map((item) => [item.targetId, item._count.id]),
+    );
+
+    return {
+      data: posts.map((post) => ({
+        ...post,
+        likeCount: likeCountMap.get(post.id) || 0,
+        commentCount: post._count.comments,
+        _count: undefined,
+      })),
     };
   }
 

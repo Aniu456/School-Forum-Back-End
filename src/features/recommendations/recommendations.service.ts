@@ -43,9 +43,10 @@ export class RecommendationsService {
             },
           },
         },
-        orderBy: {
-          likeCount: 'desc',
-        },
+        orderBy: [
+          { isHighlighted: 'desc' }, // 精华帖子置顶
+          { likeCount: 'desc' },
+        ],
         skip,
         take: limit,
       }),
@@ -102,9 +103,10 @@ export class RecommendationsService {
             },
           },
         },
-        orderBy: {
-          commentCount: 'desc',
-        },
+        orderBy: [
+          { isHighlighted: 'desc' }, // 精华帖子置顶
+          { commentCount: 'desc' },
+        ],
         skip,
         take: limit,
       }),

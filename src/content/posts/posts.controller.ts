@@ -115,6 +115,22 @@ export class PostsController {
   }
 
   /**
+   * 获取精华帖子列表
+   * GET /posts/highlighted?limit=5
+   * 注意：必须放在 :id 路由之前
+   */
+  @Public()
+  @Get('highlighted')
+  @ApiOperation({ summary: '获取精华帖子列表' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 5 })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  async findHighlighted(
+    @Query('limit', new DefaultValuePipe(5), ParseIntPipe) limit: number,
+  ) {
+    return this.postsService.findHighlighted(limit);
+  }
+
+  /**
    * 获取帖子详情
    * GET /posts/:id
    */
