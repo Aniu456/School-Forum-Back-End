@@ -1,29 +1,29 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
   Body,
-  Param,
-  Query,
-  ParseIntPipe,
+  Controller,
   DefaultValuePipe,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
 } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { AdminService } from '../admin/admin.service';
-import { ResetUserPasswordDto } from '../admin/dto/reset-user-password.dto';
-import { UpdateUserRoleDto } from '../admin/dto/update-user-role.dto';
-import { ToggleUserPermissionDto } from '../admin/dto/toggle-user-permission.dto';
 import { BulkDeleteDto } from '../admin/dto/bulk-delete.dto';
+import { ResetUserPasswordDto } from '../admin/dto/reset-user-password.dto';
+import { ToggleUserPermissionDto } from '../admin/dto/toggle-user-permission.dto';
+import { UpdateUserRoleDto } from '../admin/dto/update-user-role.dto';
 import { CurrentUser } from '../core/common/decorators/current-user.decorator';
 import { Roles } from '../core/common/decorators/roles.decorator';
-import { Role } from '@prisma/client';
 
 @Controller()
 export class AdminController {
-  constructor(private readonly adminService: AdminService) { }
+  constructor(private readonly adminService: AdminService) {}
 
   /**
    * 获取用户列表（管理员）
@@ -47,7 +47,14 @@ export class AdminController {
       isBannedBool = false;
     }
 
-    return this.adminService.getUsers(currentUserId, page, limit, role, isBannedBool, keyword);
+    return this.adminService.getUsers(
+      currentUserId,
+      page,
+      limit,
+      role,
+      isBannedBool,
+      keyword,
+    );
   }
 
   /**
@@ -251,7 +258,13 @@ export class AdminController {
     @Query('authorId') authorId?: string,
     @Query('postId') postId?: string,
   ) {
-    return this.adminService.getComments(page, limit, keyword, authorId, postId);
+    return this.adminService.getComments(
+      page,
+      limit,
+      keyword,
+      authorId,
+      postId,
+    );
   }
 
   /**
@@ -287,7 +300,7 @@ export class AdminController {
   }
 
   /**
-   * 取消精华（管理员）
+   * 取消加精（管理员）
    * DELETE /admin/posts/:id/highlight
    */
   @Roles(Role.ADMIN)
